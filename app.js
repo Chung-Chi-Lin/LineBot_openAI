@@ -57,9 +57,12 @@ async function handleEvent(event) {
   });
 
   // create a echoing text message
-  const [choices] = data.choices;
-  const echo = { type: 'text', text: choices.message.content.trim() || '抱歉，我沒有話可說了。' };
-
+  if (data && data.choices && data.choices.length) {
+    const [choices] = data.choices;
+    const echo = { type: 'text', text: choices.message.content.trim() || '抱歉，我沒有話可說了。' };
+  } else {
+    console.error('OpenAI API 調用錯誤:', data);
+  }
   // use reply API
   return client.replyMessage(event.replyToken, echo);
 }
