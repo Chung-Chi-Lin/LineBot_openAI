@@ -11,8 +11,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@line/bot-sdk": "^7.5.2",
-    "dotenv": "^16.0.3",
+    "@line/bot-sdk": "^7.6.2",
+    "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "openai": "^3.2.1"
   }
