@@ -34,9 +34,14 @@ async function handleEvent(event) {
     // ignore non-text-message event
     return Promise.resolve(null);
   }
+  const profile = await client.getProfile(event.source.userId);
+  console.log(profile.displayName);
+  console.log(profile.userId);
+  console.log(profile.pictureUrl);
+  console.log(profile.statusMessage);
 
   // 這裡，我們直接回應用戶的訊息，不透過 OpenAI
-  const echo = { type: 'text', text: event.message.text };
+  const echo = { type: 'text', text: `嗨~ ${profile.displayName}，我重複一次你的問題${event.message.text}` };
 
   // use reply API
   return client.replyMessage(event.replyToken, echo);
