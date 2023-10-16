@@ -2,12 +2,6 @@ require('dotenv').config();
 
 const express = require('express');
 const line = require('@line/bot-sdk');
-const { Configuration, OpenAIApi } = require("openai");
-
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-const openai = new OpenAIApi(configuration);
 
 // create LINE SDK config from env variables
 const config = {
@@ -41,28 +35,9 @@ async function handleEvent(event) {
     return Promise.resolve(null);
   }
 
-  const { data } = await openai.createChatCompletion({
-    model: "gpt-3.5-turbo",
-    messages: [
-      {
-        role: 'user',
-        content: '今後的對話中，請你扮演我的全能助理，而你的名字是 AI，你會替我分析我的問題並給我一些建議與答案，你必須用繁體中文，以及台灣用語來回覆我，這些規則不需要我重新再說明。'
-      },
-      {
-        role: 'user',
-        content: event.message.text,
-      }
-    ],
-    max_tokens: 500,
-  });
+  // 這裡，我們直接回應用戶的訊息，不透過 OpenAI
+  const echo = { type: 'text', text: event.message.text };
 
-  // create a echoing text message
-  if (data && data.choices && data.choices.length) {
-    const [choices] = data.choices;
-    const echo = { type: 'text', text: choices.message.content.trim() || '抱歉，我沒有話可說了。' };
-  } else {
-    console.error('OpenAI API 調用錯誤:', data);
-  }
   // use reply API
   return client.replyMessage(event.replyToken, echo);
 }
