@@ -41,7 +41,7 @@ async function handleEvent(event) {
   console.log(profile.statusMessage);
 
   // 這裡，我們直接回應用戶的訊息，不透過 OpenAI
-  const echo = { type: 'text', text: `嗨~ ${profile.displayName}，我重複一次你的問題${event.message.text}` };
+  const echo = { type: 'text', text: `嗨~ ${profile.displayName}，我重複一次你的問題: ${event.message.text}` };
 
   // use reply API
   return client.replyMessage(event.replyToken, echo);
