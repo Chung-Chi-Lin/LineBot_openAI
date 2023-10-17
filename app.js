@@ -16,6 +16,11 @@ const client = new line.Client(config);
 // about Express itself: https://expressjs.com/
 const app = express();
 
+// upTimeRobot 用來監控伺服器是否正常運作
+app.get('/healthcheck', (req, res) => {
+    res.send('OK');
+});
+
 // register a webhook handler with middleware
 // about the middleware, please refer to doc
 app.post('/callback', line.middleware(config), (req, res) => {
@@ -52,11 +57,11 @@ async function handleEvent(event) {
   let echo = '';
   // 做一個檢查用戶 id 與資料庫是否 type 已經有 乘客或司機 ，撈出那個用戶做+-動作
   if (event.message.text === '我是乘客') {
-    echo = { type: 'text', text: `${profile.displayName}，我已經將您切換為乘客` };
+    echo = { type: 'text', text: `${profile.displayName} ，我已經將您切換為 乘客 !` };
   } else if (event.message.text === '我是司機') {
-    echo = { type: 'text', text: `${profile.displayName}，我已經將您切換為司機` };
+    echo = { type: 'text', text: `${profile.displayName} ，我已經將您切換為 司機 !` };
   } else {
-      echo = { type: 'text', text: `嗨~ ${profile.displayName}，我重複一次你的問題: ${event.message.text}` };
+      echo = { type: 'text', text: `嗨~ ${profile.displayName} ，我重複一次你的問題: ${event.message.text}` };
   }
   // use reply API
   return client.replyMessage(event.replyToken, echo);
