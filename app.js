@@ -4,7 +4,7 @@ const express = require('express');
 const line = require('@line/bot-sdk');
 const mysql = require('mysql2/promise');
 
-// create LINE SDK config from env variables
+// create LINE、SQL SDK config from env variables
 const config = {
     channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
     channelSecret: process.env.CHANNEL_SECRET,
@@ -23,7 +23,7 @@ const pool = mysql.createPool({
 // create LINE SDK client
 const client = new line.Client(config);
 
-// create Express app
+// === create Express app ===
 // about Express itself: https://expressjs.com/
 const app = express();
 
@@ -33,7 +33,6 @@ app.get('/healthcheck', (req, res) => {
 });
 
 // register a webhook handler with middleware
-// about the middleware, please refer to doc
 app.post('/callback', line.middleware(config), (req, res) => {
     Promise
         .all(req.body.events.map(handleEvent))
@@ -52,6 +51,27 @@ app.post('/callback', line.middleware(config), (req, res) => {
         });
 });
 
+// === 主要事件處理處 ===
+// SQL 專用 function
+async function executeSQL(query, params) {
+    try {
+        const [rows, fields] = await pool.execute(query, params);
+        return [rows, fields];
+    } catch (error) {
+        console.error('SQL Error:', error);
+        throw error;
+    }
+}
+
+// LINE 回傳提示字 function
+function createEchoMessage(profileName, userType) {
+    let messageText = `嗨~ ${profileName} ，我重複一次你的問題: `;
+    if (userType === '乘客' || userType === '司機') {
+        messageText = `${profileName} ，我已經將您切換為 ${userType} !`;
+    }
+    return {type: 'text', text: messageText};
+}
+
 // event handler
 async function handleEvent(event) {
     if (event.type !== 'message' || event.message.type !== 'text') {
@@ -59,27 +79,24 @@ async function handleEvent(event) {
         return Promise.resolve(null);
     }
     const profile = await client.getProfile(event.source.userId);
-    console.log(profile.displayName);
-    console.log(profile.userId);
-    console.log(profile.pictureUrl);
-    console.log(profile.statusMessage);
 
-    let echo = '';
-    // 做一個檢查用戶 id 與資料庫是否 type 已經有 乘客或司機 ，撈出那個用戶做+-動作
+    let userType = '';
     if (event.message.text === '我是乘客') {
-        echo = {type: 'text', text: `${profile.displayName} ，我已經將您切換為 乘客 !`};
+        userType = '乘客';
     } else if (event.message.text === '我是司機') {
-        echo = {type: 'text', text: `${profile.displayName} ，我已經將您切換為 司機 !`};
-
-        const [rows, fields] = await pool.execute('INSERT INTO users (line_user_id, line_user_name, line_user_type) VALUES (?, ?, ?)', [profile.userId, profile.displayName, '司機']);
-    } else {
-        echo = {type: 'text', text: `嗨~ ${profile.displayName} ，我重複一次你的問題: ${event.message.text}`};
+        userType = '司機';
     }
+
+    if (userType) {
+        await executeSQL('INSERT INTO users (line_user_id, line_user_name, line_user_type) VALUES (?, ?, ?)', [profile.userId, profile.displayName, userType]);
+    }
+
+    const echo = createEchoMessage(profile.displayName, userType || event.message.text);
     // use reply API
     return client.replyMessage(event.replyToken, echo);
 }
 
-// listen on port
+// === listen on port ===
 const port = process.env.PORT || 3000;
 // 預設的錯誤處理器
 app.use((err, req, res, next) => {
