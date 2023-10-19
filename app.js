@@ -193,6 +193,7 @@ async function handleEvent(event) {
             echo = createEchoMessage(profile.displayName, event.message.text);
         }
     }
+    console.log("echo測試", echo);
     // use reply API
     return client.replyMessage(event.replyToken, echo);
 }
