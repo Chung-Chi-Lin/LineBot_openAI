@@ -152,6 +152,7 @@ async function fareIncome(profile) {
     console.log(123)
     // 1. 執行SQL查詢來獲取所有的user_fare的總和
     const [result] = await executeSQL('SELECT SUM(user_fare) AS total_income FROM fare');
+    console.log([result])
 
     // 2. 檢查查詢結果
     if (!result[0] || result[0].total_income === null) {
@@ -160,7 +161,7 @@ async function fareIncome(profile) {
         const totalIncome = result[0].total_income;
         echo = { type: 'text', text: `目前的總車費收入為 ${totalIncome}。` };
     }
-
+    console.log("測試1", echo)
     return echo;
 }
 
@@ -178,15 +179,7 @@ async function handleEvent(event) {
     if (validationResult.status === 'success') {
         const userLineType = validationResult.user.line_user_type;
         const userFunction = FUNCTIONS_MAP[userLineType][event.message.text];
-        // console.log("測試", FUNCTIONS_MAP)
-        // console.log("測試2", userLineType)
-        // console.log("測試3", event.message.text)
-        // console.log("測試4", FUNCTIONS_MAP[userLineType])
-        // console.log("測試5", FUNCTIONS_MAP['司機'])
-        // console.log("測試6", FUNCTIONS_MAP['司機']['車費收入'])
-        // console.log("測試7", fareIncome(profile))
-        console.log("測試8", userFunction)
-        console.log("測試9", userFunction(profile, event));
+
         if (userFunction) {
             // 執行對應的功能
             return userFunction(profile, event);
