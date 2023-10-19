@@ -71,7 +71,7 @@ async function handleEvent(event) {
     } else if (event.message.text === '我是司機') {
         echo = {type: 'text', text: `${profile.displayName} ，我已經將您切換為 司機 !`};
 
-        const [rows, fields] = await pool.execute('INSERT INTO drivers (user_id, display_name, type) VALUES (?, ?, ?)', [profile.userId, profile.displayName, '司機']);
+        const [rows, fields] = await pool.execute('INSERT INTO users (line_user_id, line_user_name, line_user_type) VALUES (?, ?, ?)', [profile.userId, profile.displayName, '司機']);
     } else {
         echo = {type: 'text', text: `嗨~ ${profile.displayName} ，我重複一次你的問題: ${event.message.text}`};
     }
