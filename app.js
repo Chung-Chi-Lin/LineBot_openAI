@@ -149,10 +149,8 @@ async function fareSearch(profile) {
 
 // 司機-顯示司機的車費收入
 async function fareIncome(profile) {
-    console.log(123)
     // 1. 執行SQL查詢來獲取所有的user_fare的總和
     const [result] = await executeSQL('SELECT SUM(user_fare) AS total_income FROM fare');
-    console.log([result])
 
     // 2. 檢查查詢結果
     if (!result[0] || result[0].total_income === null) {
@@ -161,7 +159,6 @@ async function fareIncome(profile) {
         const totalIncome = result[0].total_income;
         echo = { type: 'text', text: `目前的總車費收入為 ${totalIncome}。` };
     }
-    console.log("測試1", echo)
     return echo;
 }
 
@@ -175,6 +172,7 @@ async function handleEvent(event) {
     const profile = await client.getProfile(event.source.userId); // 用戶資料
     const validationResult = await validateUser(profile, event); // 初始 ID 驗證
     let userType = '';
+    let echo = {};
 
     if (validationResult.status === 'success') {
         const userLineType = validationResult.user.line_user_type;
@@ -182,6 +180,7 @@ async function handleEvent(event) {
 
         if (userFunction) {
             // 執行對應的功能
+            console.log("測試1", echo);
             return userFunction(profile, event);
         } else {
             return createEchoMessage(profile.displayName, event.message.text);
@@ -195,7 +194,7 @@ async function handleEvent(event) {
             echo = createEchoMessage(profile.displayName, event.message.text);
         }
     }
-
+    console.log("測試2", echo)
     // use reply API
     return client.replyMessage(event.replyToken, echo);
 }
