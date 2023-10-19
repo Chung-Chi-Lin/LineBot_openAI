@@ -122,7 +122,6 @@ async function handleUserTypeChange(profile, userType) {
 async function fareTransfer(profile, event) {
     // 正規表達式修改為匹配「車費匯款:」後，第一個數字為1-9，後續可以是0-9的數字
     const fareMatch = event.message.text.match(/^車費匯款:([1-9][0-9]*)$/);
-    let echo;
 
     if (fareMatch) {
         const fareAmount = Number(fareMatch[1]);
@@ -132,7 +131,7 @@ async function fareTransfer(profile, event) {
         echo = createEchoMessage(profile.displayName, event.message.text);
     }
 
-    return echo;
+    // return echo;
 }
 // 乘客-車費查詢的操作
 async function fareSearch(profile) {
@@ -144,7 +143,7 @@ async function fareSearch(profile) {
         const fare = userFare[0].user_fare;
         echo = { type: 'text', text: `${profile.displayName} ，您目前的車費為 ${fare}。` };
     }
-    return echo;
+    // return echo;
 }
 
 // 司機-顯示司機的車費收入
@@ -181,7 +180,7 @@ async function handleEvent(event) {
         if (userFunction) {
             // 執行對應的功能
             console.log("測試2", echo);
-            userFunction(profile, event);
+            await userFunction(profile, event);
         } else {
             return createEchoMessage(profile.displayName, event.message.text);
         }
