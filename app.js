@@ -178,14 +178,15 @@ async function handleEvent(event) {
     if (validationResult.status === 'success') {
         const userLineType = validationResult.user.line_user_type;
         const userFunction = FUNCTIONS_MAP[userLineType][event.message.text];
-        console.log("測試", FUNCTIONS_MAP)
-        console.log("測試2", userLineType)
-        console.log("測試3", event.message.text)
-        console.log("測試4", FUNCTIONS_MAP[userLineType])
-        console.log("測試5", FUNCTIONS_MAP['司機'])
-        console.log("測試6", FUNCTIONS_MAP['司機']['車費收入'])
-        console.log("測試7", fareIncome(profile))
-
+        // console.log("測試", FUNCTIONS_MAP)
+        // console.log("測試2", userLineType)
+        // console.log("測試3", event.message.text)
+        // console.log("測試4", FUNCTIONS_MAP[userLineType])
+        // console.log("測試5", FUNCTIONS_MAP['司機'])
+        // console.log("測試6", FUNCTIONS_MAP['司機']['車費收入'])
+        // console.log("測試7", fareIncome(profile))
+        console.log("測試8", userFunction)
+        console.log("測試9", userFunction(profile, event));
         if (userFunction) {
             // 執行對應的功能
             return userFunction(profile, event);
