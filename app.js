@@ -159,7 +159,8 @@ async function fareIncome(profile) {
         const totalIncome = result[0].total_income;
         echo = { type: 'text', text: `目前的總車費收入為 ${totalIncome}。` };
     }
-    return echo;
+    console.log("測試1", echo);
+    // return echo;
 }
 
 // event handler
@@ -172,7 +173,6 @@ async function handleEvent(event) {
     const profile = await client.getProfile(event.source.userId); // 用戶資料
     const validationResult = await validateUser(profile, event); // 初始 ID 驗證
     let userType = '';
-    let echo = {};
 
     if (validationResult.status === 'success') {
         const userLineType = validationResult.user.line_user_type;
@@ -180,9 +180,7 @@ async function handleEvent(event) {
 
         if (userFunction) {
             // 執行對應的功能
-            console.log("測試1", echo);
-            console.log("測試2", userFunction(profile, event));
-            console.log("測試3", userFunction(profile, event));
+            console.log("測試2", echo);
             userFunction(profile, event);
         } else {
             return createEchoMessage(profile.displayName, event.message.text);
@@ -196,7 +194,7 @@ async function handleEvent(event) {
             echo = createEchoMessage(profile.displayName, event.message.text);
         }
     }
-    console.log("測試2", echo)
+    console.log("測試3", echo)
     // use reply API
     return client.replyMessage(event.replyToken, echo);
 }
