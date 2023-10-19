@@ -173,11 +173,11 @@ async function handleEvent(event) {
     const profile = await client.getProfile(event.source.userId); // 用戶資料
     const validationResult = await validateUser(profile, event); // 初始 ID 驗證
     let userType = '';
-    console.log("validationResult", validationResult);
+
     if (validationResult.status === 'success') {
         const userLineType = validationResult.user.line_user_type;
         const userFunction = FUNCTIONS_MAP[userLineType][event.message.text];
-
+        console.log("測試", userFunction)
         if (userFunction) {
             // 執行對應的功能
             return userFunction(profile, event);
@@ -193,7 +193,7 @@ async function handleEvent(event) {
             echo = createEchoMessage(profile.displayName, event.message.text);
         }
     }
-    console.log("echo測試", echo);
+
     // use reply API
     return client.replyMessage(event.replyToken, echo);
 }
