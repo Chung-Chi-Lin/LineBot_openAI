@@ -181,7 +181,9 @@ async function handleEvent(event) {
         if (userFunction) {
             // 執行對應的功能
             console.log("測試1", echo);
-            return userFunction(profile, event);
+            console.log("測試2", userFunction(profile, event));
+            console.log("測試3", userFunction(profile, event));
+            userFunction(profile, event);
         } else {
             return createEchoMessage(profile.displayName, event.message.text);
         }
