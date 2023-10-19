@@ -51,13 +51,27 @@ app.post('/callback', line.middleware(config), (req, res) => {
         });
 });
 
-// === 主要事件處理處 ===
+// =========================== 主要事件處理處 ===========================
+// === data ===
+const FUNCTIONS_MAP = {
+    '乘客': {
+        '車費匯款': fareTransfer,
+        '車費查詢': fareSearch,
+        // 可以根據需求繼續新增功能
+    },
+    '司機': {
+        '車費收入': fareIncome,
+        // 可以根據需求繼續新增功能
+    }
+};
+let echo = {};
 // SQL 專用 function
 async function executeSQL(query, params) {
     try {
         const [rows, fields] = await pool.execute(query, params);
         return [rows, fields];
     } catch (error) {
+        echo = { type: 'text', text: '資料異常請聯絡開發人員' };
         console.error('SQL Error:', error);
         throw error;
     }
@@ -65,11 +79,88 @@ async function executeSQL(query, params) {
 
 // LINE 回傳提示字 function
 function createEchoMessage(profileName, userType) {
-    let messageText = `嗨~ ${profileName} ，我重複一次你的問題: `;
+    let messageText = `嗨~ ${profileName} ，請輸入正確的指令!`;
     if (userType === '乘客' || userType === '司機') {
         messageText = `${profileName} ，我已經將您切換為 ${userType} !`;
     }
     return {type: 'text', text: messageText};
+}
+
+// 驗證用戶是否存在於資料庫
+async function validateUser(profile, event) {
+    const [existingUsers] = await executeSQL('SELECT * FROM users WHERE line_user_id = ?', [profile.userId]);
+    let status = '';
+    let user = null;
+
+    // 檢查existingUsers是否為空
+    if (existingUsers.length === 0) {
+        echo = { type: 'text', text: '找不到使用者' };
+        status = 'not_found';
+    } else if ((existingUsers[0].line_user_type === '乘客' && event.message.text === '我是司機') ||
+        (existingUsers[0].line_user_type === '司機' && event.message.text === '我是乘客')) {
+        echo = { type: 'text', text: '如需切換使用者請聯絡開發人員' };
+        status = 'error';
+    } else {
+        echo = { type: 'text', text: '歡迎回來，請問需要什麼服務嗎? 1. 範例: 車費匯款:1200' };
+        status = 'success';
+        user = existingUsers[0];
+    }
+
+    return {
+        user: user,
+        status: status
+    };
+}
+
+// 新建用戶
+async function handleUserTypeChange(profile, userType) {
+    await executeSQL('INSERT INTO users (line_user_id, line_user_name, line_user_type) VALUES (?, ?, ?)', [profile.userId, profile.displayName, userType]);
+    return createEchoMessage(profile.displayName, userType);
+}
+// === 對應指令功能 ===
+// 乘客-車費匯款的操作
+async function fareTransfer(profile, event) {
+    // 正規表達式修改為匹配「車費匯款:」後，第一個數字為1-9，後續可以是0-9的數字
+    const fareMatch = event.message.text.match(/^車費匯款:([1-9][0-9]*)$/);
+    let echo;
+
+    if (fareMatch) {
+        const fareAmount = Number(fareMatch[1]);
+        await executeSQL('INSERT INTO fare (line_user_id, user_fare) VALUES (?, ?)', [profile.userId, fareAmount]);
+        echo = { type: 'text', text: `${profile.displayName} ，您的車費 ${fareAmount} 已被記錄。` };
+    } else {
+        echo = createEchoMessage(profile.displayName, event.message.text);
+    }
+
+    return echo;
+}
+// 乘客-車費查詢的操作
+async function fareSearch(profile) {
+    const [userFare] = await executeSQL('SELECT user_fare FROM fare WHERE line_user_id = ?', [profile.userId]);
+    // 4. 檢查查詢結果
+    if (userFare.length === 0) {
+        echo = { type: 'text', text: `${profile.displayName} ，您尚未有車費紀錄。` };
+    } else {
+        const fare = userFare[0].user_fare;
+        echo = { type: 'text', text: `${profile.displayName} ，您目前的車費為 ${fare}。` };
+    }
+    return echo;
+}
+
+// 司機-顯示司機的車費收入
+async function fareIncome(profile) {
+    // 1. 執行SQL查詢來獲取所有的user_fare的總和
+    const [result] = await executeSQL('SELECT SUM(user_fare) AS total_income FROM fare');
+
+    // 2. 檢查查詢結果
+    if (!result[0] || result[0].total_income === null) {
+        echo = { type: 'text', text: `目前尚無車費收入紀錄。` };
+    } else {
+        const totalIncome = result[0].total_income;
+        echo = { type: 'text', text: `目前的總車費收入為 ${totalIncome}。` };
+    }
+
+    return echo;
 }
 
 // event handler
@@ -78,23 +169,34 @@ async function handleEvent(event) {
         // ignore non-text-message event
         return Promise.resolve(null);
     }
-    const profile = await client.getProfile(event.source.userId);
 
+    const profile = await client.getProfile(event.source.userId); // 用戶資料
+    const validationResult = await validateUser(profile, event); // 初始 ID 驗證
     let userType = '';
-    if (event.message.text === '我是乘客') {
-        userType = '乘客';
-    } else if (event.message.text === '我是司機') {
-        userType = '司機';
-    }
 
-    if (userType) {
-        await executeSQL('INSERT INTO users (line_user_id, line_user_name, line_user_type) VALUES (?, ?, ?)', [profile.userId, profile.displayName, userType]);
-    }
+    if (validationResult.status === 'success') {
+        const userLineType = validationResult.user.line_user_type;
+        const userFunction = FUNCTIONS_MAP[userLineType][event.message.text];
 
-    const echo = createEchoMessage(profile.displayName, userType || event.message.text);
+        if (userFunction) {
+            // 執行對應的功能
+            return userFunction(profile, event);
+        } else {
+            return createEchoMessage(profile.displayName, event.message.text);
+        }
+    } else {
+        if (event.message.text === '我是乘客' || event.message.text === '我是司機') {
+            userType = event.message.text === '我是乘客' ? '乘客' : '司機';
+            await handleUserTypeChange(profile, userType);
+            echo = createEchoMessage(profile.displayName, userType);
+        } else {
+            echo = createEchoMessage(profile.displayName, event.message.text);
+        }
+    }
     // use reply API
     return client.replyMessage(event.replyToken, echo);
 }
+// =========================== 主要事件處理處 ===========================
 
 // === listen on port ===
 const port = process.env.PORT || 3000;
