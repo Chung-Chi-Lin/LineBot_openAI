@@ -177,7 +177,9 @@ async function handleEvent(event) {
     if (validationResult.status === 'success') {
         const userLineType = validationResult.user.line_user_type;
         const userFunction = FUNCTIONS_MAP[userLineType][event.message.text];
-        console.log("測試", userFunction)
+        console.log("測試", FUNCTIONS_MAP)
+        console.log("測試2", userLineType)
+        console.log("測試3", event.message.text)
         if (userFunction) {
             // 執行對應的功能
             return userFunction(profile, event);
