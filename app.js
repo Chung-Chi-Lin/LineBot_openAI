@@ -233,13 +233,12 @@ async function fareSearch(profile) {
 
 // 司機-顯示司機的乘客車費計算表
 async function fareIncome(profile) {
-  console.log('測試', profile);
   // 1. 執行SQL查詢來獲取特定司機的所有乘客的車費紀錄
   const [result] = await executeSQL(
-    `SELECT u.user_name, f.user_fare, DATE_FORMAT(f.update_time, '%Y-%m-%d') AS formatted_date
+    `SELECT u.line_user_name, f.user_fare, DATE_FORMAT(f.update_time, '%Y-%m-%d') AS formatted_date
         FROM fare AS f
-        JOIN users AS u ON f.line_user_id = u.user_id
-        WHERE f.line_user_driver = ?`,
+        JOIN users AS u ON f.line_user_id = u.line_user_id
+        WHERE u.line_user_driver = ?`,
     [profile.userId]
   );
 
@@ -249,7 +248,7 @@ async function fareIncome(profile) {
   } else {
     let responseText = '目前的車費計算表為：\n';
     result.forEach((entry) => {
-      responseText += `${entry.user_name} : NT$${entry.user_fare}，匯款時間為${entry.formatted_date}\n`;
+      responseText += `${entry.line_user_name} : NT$${entry.user_fare}，匯款時間為${entry.formatted_date}\n`;
     });
     createResponse('text', responseText);
   }
@@ -259,7 +258,7 @@ async function fareIncome(profile) {
 async function userInformation(profile) {
   // 1. 執行SQL查詢來獲取所有乘客的資訊
   const [result] = await executeSQL(
-    `SELECT user_id, user_name, line_user_id FROM users WHERE line_user_type = '乘客' AND line_user_driver = ?`,
+    `SELECT line_user_id, line_user_name FROM users WHERE line_user_type = '乘客' AND line_user_driver = ?`,
     [profile.userId]
   );
 
@@ -269,7 +268,7 @@ async function userInformation(profile) {
   } else {
     let responseText = '目前的乘客資訊為：\n';
     result.forEach((entry) => {
-      responseText += `${entry.user_name} : ${entry.user_id}\n`;
+      responseText += `${entry.line_user_name} : ${entry.line_user_id}\n`;
     });
     createResponse('text', responseText);
   }
