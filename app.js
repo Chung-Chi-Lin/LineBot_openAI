@@ -117,8 +117,8 @@ function createResponse(type, message) {
 
 // 指令共用格式
 function getCommandsAsString(userType) {
-    const commands = Object.entries(COMMANDS_MAP[userType]).map(([key, value]) => `${key}: '${value.remark}'`);
-    return `指令為 ${commands.join('。\n')}。`;
+    const commands = Object.entries(COMMANDS_MAP[userType]).map(([key, value]) => `> ${key}: '${value.remark}'`);
+    return `指令為\n ${commands.join('。\n')}。`;
 };
 
 // 共用儲存SQL日期格式
