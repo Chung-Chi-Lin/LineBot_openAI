@@ -75,8 +75,7 @@ async function validateUser(profile, event) {
     );
     let type = '';
     let user = null;
-    console.log("測試", existingUsers.length);
-    console.log("測試", existingUsers.length === 0);
+
     if (existingUsers.length > 0 && event.message.text !== '77') {
         type = 'existing_user'; // 原有用戶
         user = existingUsers[0];
@@ -186,7 +185,7 @@ async function handleEvent(event) {
     const profile = await client.getProfile(event.source.userId); // 用戶資料
     const validationResult = await validateUser(profile, event); // 初始 ID 驗證
     let userType = '';
-
+    console.log("測試", validationResult.type)
     if (validationResult.type === 'existing_user') {
         const userLineType = validationResult.user.line_user_type;
         const userFunction = FUNCTIONS_MAP[userLineType][event.message.text];
@@ -216,7 +215,7 @@ async function handleEvent(event) {
     } else {
         createResponse('text', '請先依照身分輸入(我是乘客) 或 (我是司機) 加入。');
     }
-
+    console.log("測試2", echo);
     // use reply API
     return client.replyMessage(event.replyToken, echo);
 }
