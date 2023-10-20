@@ -128,6 +128,9 @@ async function handleUserTypeChange(profile, userType) {
 async function fareTransfer(profile, event) {
     // 正規表達式修改為匹配「車費匯款:」後，第一個數字為1-9，後續可以是0-9的數字
     const fareMatch = event.message.text.match(/^車費匯款:([1-9][0-9]*)$/);
+    console.log("測試", fareMatch);
+    console.log("測試2", event.message.text.includes('車費匯款:'));
+    console.log("測試3", event.message.text.match('車費匯款:'));
 
     if (fareMatch) {
         const fareAmount = Number(fareMatch[1]);
@@ -208,7 +211,7 @@ async function handleEvent(event) {
     } else if (validationResult.type === 'repeat_command') {
         createResponse('text', '如需切換使用者請聯絡開發人員');
     } else if (validationResult.type === 'super_user') {
-        createResponse('text', '嗨! 我是開發者 77 這是我的 LINE ID: 0925955648，如果你真的需要我的幫助，請再聯繫我');
+        createResponse('text', '嗨! 我是開發者 77 這是我的 LINE ID: 0925955648，如果你真的需要我的幫助，請再聯繫我 !');
     } else {
         createResponse('text', '請先依照身分輸入(我是乘客) 或 (我是司機) 加入。');
     }
