@@ -79,13 +79,10 @@ async function validateUser(profile, event) {
     if (existingUsers.length > 0 && event.message.text !== '77') {
         type = 'existing_user'; // 原有用戶
         user = existingUsers[0];
-    } else if (
-        (existingUsers[0].line_user_type === '乘客' &&
-            event.message.text === '我是司機') ||
-        (existingUsers[0].line_user_type === '司機' &&
-            event.message.text === '我是乘客')
-    ) {
-        type = 'repeat_command'; // 重複寫入
+        if ((existingUsers[0].line_user_type === '乘客' && event.message.text === '我是司機') ||
+            (existingUsers[0].line_user_type === '司機' && event.message.text === '我是乘客')) {
+            type = 'repeat_command'; // 重複寫入
+        }
     } else if (existingUsers.length === 0 && (event.message.text === '我是乘客' || event.message.text === '我是司機')) {
         type = 'create_user'; // 創新戶
     } else if (event.message.text === '77') {
@@ -185,7 +182,7 @@ async function handleEvent(event) {
     const profile = await client.getProfile(event.source.userId); // 用戶資料
     const validationResult = await validateUser(profile, event); // 初始 ID 驗證
     let userType = '';
-    console.log("測試", validationResult.type)
+
     if (validationResult.type === 'existing_user') {
         const userLineType = validationResult.user.line_user_type;
         const userFunction = FUNCTIONS_MAP[userLineType][event.message.text];
@@ -215,7 +212,7 @@ async function handleEvent(event) {
     } else {
         createResponse('text', '請先依照身分輸入(我是乘客) 或 (我是司機) 加入。');
     }
-    console.log("測試2", echo);
+
     // use reply API
     return client.replyMessage(event.replyToken, echo);
 }
