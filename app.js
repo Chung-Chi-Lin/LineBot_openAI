@@ -57,12 +57,12 @@ const COMMANDS_MAP = {
   乘客: {
     車費匯款: {
       function: fareTransfer,
-      remark: '確認"匯款後"輸入之金額 (輸入範例: 車費匯款:1200)',
+      remark: '先行匯款後輸入之金額紀錄 (輸入範例: 車費匯款:1200)',
     },
     車費查詢: {
       function: fareSearch,
       remark:
-        '確認是否有因"未搭車、多搭車後加減原匯款金額之總費用" (輸入範例: 車費查詢)',
+        '確認加減原匯款金額之剩餘費用，例如:未搭車或多搭乘 (輸入範例: 車費查詢)',
     },
     // 可以根據需求繼續新增功能
   },
@@ -127,7 +127,7 @@ function createResponse(type, message) {
 // 指令共用格式
 function getCommandsAsString(userType) {
   const commands = Object.entries(COMMANDS_MAP[userType]).map(
-    ([key, value]) => `> ${key}: ${value.remark}`
+    ([key, value]) => ` > ${key}: ${value.remark}`
   );
   return `指令為:\n ${commands.join('。\n')}。`;
 }
@@ -184,6 +184,10 @@ async function fareTransfer(profile, event) {
       const lastUpdateTime = new Date(result[0].update_time);
 
       // 2. 比較該 update_time 是否在當前月份
+      console.log('測試', lastUpdateTime.getMonth());
+      console.log('測試1', currentDate.getMonth());
+      console.log('測試2', currentDate.getFullYear());
+      console.log('測試3', currentDate.getFullYear());
       if (
         lastUpdateTime.getMonth() === currentDate.getMonth() &&
         lastUpdateTime.getFullYear() === currentDate.getFullYear()
@@ -248,7 +252,7 @@ async function fareIncome(profile) {
   } else {
     let responseText = '目前的車費計算表為：\n';
     result.forEach((entry) => {
-      responseText += `${entry.line_user_name} : NT$${entry.user_fare}，匯款時間為${entry.formatted_date}\n`;
+      responseText += `${entry.line_user_name} : NT$${entry.user_fare}，匯款時間為 ${entry.formatted_date}\n`;
     });
     createResponse('text', responseText);
   }
@@ -266,7 +270,7 @@ async function userInformation(profile) {
   if (result.length === 0) {
     createResponse('text', `目前尚無乘客資訊。`);
   } else {
-    let responseText = '目前的乘客資訊為：\n';
+    let responseText = '目前的乘客資訊為(請複製對應 ID 將乘客綁定)：\n';
     result.forEach((entry) => {
       responseText += `${entry.line_user_name} : ${entry.line_user_id}\n`;
     });
