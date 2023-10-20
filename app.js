@@ -128,9 +128,6 @@ async function handleUserTypeChange(profile, userType) {
 async function fareTransfer(profile, event) {
     // 正規表達式修改為匹配「車費匯款:」後，第一個數字為1-9，後續可以是0-9的數字
     const fareMatch = event.message.text.match(/^車費匯款:([1-9][0-9]*)$/);
-    console.log("測試", fareMatch);
-    console.log("測試2", event.message.text.includes('車費匯款:'));
-    console.log("測試3", event.message.text.match('車費匯款:'));
 
     if (fareMatch) {
         const fareAmount = Number(fareMatch[1]);
@@ -189,10 +186,12 @@ async function handleEvent(event) {
     if (validationResult.type === 'existing_user') {
         const userLineType = validationResult.user.line_user_type;
         const userFunction = FUNCTIONS_MAP[userLineType][event.message.text];
+        const fareTransferMatch = event.message.text.includes('車費匯款:');
 
         if (userFunction) {
-            // 執行對應的功能
-            await userFunction(profile, event);
+            await userFunction(profile, event);// 正確指令執行對應的功能
+        } else if (fareTransferMatch) {
+            await fareTransfer(profile, event); // 車費匯款特別處理
         } else {
             if (userLineType) {
                 const functionNames = Object.keys(FUNCTIONS_MAP[userLineType]);// 擷取功能名稱
