@@ -233,20 +233,14 @@ async function fareSearch(profile) {
 
 // 司機-顯示司機的乘客車費計算表
 async function fareIncome(profile) {
-  // 司機ID
-  const driverId = profile.user_id; // 假設你存放司機ID的地方是profile.driver_id
-  console.log('測試', profile.user_id);
-  if (!driverId) {
-    createResponse('text', `錯誤：無法取得司機ID。`);
-    return;
-  }
+  console.log('測試', profile);
   // 1. 執行SQL查詢來獲取特定司機的所有乘客的車費紀錄
   const [result] = await executeSQL(
     `SELECT u.user_name, f.user_fare, DATE_FORMAT(f.update_time, '%Y-%m-%d') AS formatted_date
         FROM fare AS f
         JOIN users AS u ON f.line_user_id = u.user_id
         WHERE f.line_user_driver = ?`,
-    [driverId]
+    [profile.userId]
   );
 
   // 2. 檢查查詢結果
@@ -266,7 +260,7 @@ async function userInformation(profile) {
   // 1. 執行SQL查詢來獲取所有乘客的資訊
   const [result] = await executeSQL(
     `SELECT user_id, user_name, line_user_id FROM users WHERE line_user_type = '乘客' AND line_user_driver = ?`,
-    [profile.user_id]
+    [profile.userId]
   );
 
   // 2. 檢查查詢結果
