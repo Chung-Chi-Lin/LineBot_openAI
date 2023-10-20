@@ -41,7 +41,7 @@ app.post('/callback', line.middleware(config), (req, res) => {
             // 回應 LINE 用戶一個錯誤訊息
             const errorMessage = {
                 type: 'text',
-                text: '伺服器忙碌中，請稍後重試',
+                text: '資料處理中，請稍後重試',
             };
             return client
                 .replyMessage(req.body.events[0].replyToken, errorMessage)
@@ -75,8 +75,9 @@ async function validateUser(profile, event) {
     );
     let type = '';
     let user = null;
-
-    if (existingUsers.length > 0) {
+    console.log("測試", existingUsers.length);
+    console.log("測試", existingUsers.length === 0);
+    if (existingUsers.length > 0 && event.message.text !== '77') {
         type = 'existing_user'; // 原有用戶
         user = existingUsers[0];
     } else if (
