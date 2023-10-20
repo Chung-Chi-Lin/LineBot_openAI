@@ -262,7 +262,8 @@ async function handleEvent(event) {
     if (validationResult.type === 'existing_user') {
         // 此區塊處理已存在的用戶
         const userLineType = validationResult.user.line_user_type;
-        const userFunction = COMMANDS_MAP[userLineType][event.message.text].function;
+        const command = COMMANDS_MAP[userLineType] && COMMANDS_MAP[userLineType][event.message.text];
+        const userFunction = command ? command.function : null;
         const fareTransferMatch = event.message.text.includes('車費匯款:');
 
         if (userFunction) {
