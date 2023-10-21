@@ -184,6 +184,7 @@ async function fareTransfer(profile, event) {
       const lastUpdateTime = new Date(result[0].update_time);
 
       // 2. 比較該 update_time 是否在當前月份
+      console.log('123', lastUpdateTime);
       console.log('測試', lastUpdateTime.getMonth());
       console.log('測試1', currentDate.getMonth());
       console.log('測試2', currentDate.getFullYear());
