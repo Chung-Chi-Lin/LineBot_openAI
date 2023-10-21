@@ -177,7 +177,7 @@ async function fareTransfer(profile, event) {
     const currentDate = new Date(); // 當下日期
     const formattedDate = formatDate(currentDate); // 將當下時間轉成儲存資料庫
     const userFare = result[0].user_fare; // 當前使用者費用
-    const lastUpdateTime = new Date(result[0].update_time); // 使用者資料最後紀錄匯款日
+    const lastUpdateTime = new Date(result[0][0].update_time); // 使用者資料最後紀錄匯款日
     console.log('lastUpdateTime', result);
     console.log('lastUpdateTime', lastUpdateTime.getMonth());
     console.log('lastUpdateTime', lastUpdateTime.getFullYear());
