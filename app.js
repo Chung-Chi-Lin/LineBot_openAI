@@ -376,6 +376,7 @@ async function handleEvent(event) {
         `SELECT line_user_id, line_user_name FROM users WHERE line_user_type = '司機'`
       );
       let responseText = '';
+      console.log('測試', result);
       result.forEach((entry) => {
         responseText += `${entry.user_name} : ${entry.user_id}\n`;
       });
