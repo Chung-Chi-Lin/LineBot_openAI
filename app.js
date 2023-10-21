@@ -93,11 +93,6 @@ async function validateUser(profile, event) {
     'SELECT * FROM users WHERE line_user_id = ?',
     [profile.userId]
   );
-  // 是否為乘客且有 ID 在資料庫
-  const [userData] = await executeSQL(
-    'SELECT line_user_driver FROM users WHERE line_user_id = ?',
-    [profile.userId]
-  );
   let type = '';
   let user = null;
 
@@ -117,8 +112,6 @@ async function validateUser(profile, event) {
     (event.message.text === '我是乘客' || event.message.text === '我是司機')
   ) {
     type = 'create_user'; // 創新戶
-  } else if (userData.length === 0) {
-    type = 'passenger_check'; // 確認乘客綁定
   } else if (event.message.text === '77') {
     type = 'super_user'; // 技術支援
   } else {
@@ -337,7 +330,20 @@ async function handleEvent(event) {
       COMMANDS_MAP[userLineType][event.message.text];
     const userFunction = command ? command.function : null;
     const fareTransferMatch = event.message.text.includes('車費匯款');
-
+    // 是否為乘客判斷有無綁定司機ID
+    const [userData] = await executeSQL(
+      'SELECT line_user_driver FROM users WHERE line_user_id = ?',
+      [profile.userId]
+    );
+    if (userData.length === 0 && userLineType === '乘客') {
+      createResponse(
+        'text',
+        `${profile.displayName} ，您尚未綁定司機 ID。\n請綁定搭乘司機後方可計算日後車費 (輸入範例: 綁定搭乘司機:司機ID)。`
+      );
+      // use reply API
+      return client.replyMessage(event.replyToken, echo);
+    }
+    // ==========================================================
     if (userFunction) {
       await userFunction(profile, event); // 正確指令執行對應的功能
     } else if (fareTransferMatch && userLineType === '乘客') {
@@ -386,12 +392,6 @@ async function handleEvent(event) {
   } else if (validationResult.type === 'repeat_command') {
     // 此區塊處理重複指令
     createResponse('text', '如需切換使用者請聯絡開發人員');
-  } else if (validationResult.type === 'passenger_check') {
-    // 此區塊處理技術支援
-    createResponse(
-      'text',
-      `${profile.displayName} ，您尚未綁定司機 ID。\n請綁定搭乘司機後方可計算日後車費 (輸入範例: 綁定搭乘司機:司機ID)。`
-    );
   } else if (validationResult.type === 'super_user') {
     // 此區塊處理技術支援
     createResponse(
