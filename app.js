@@ -64,6 +64,10 @@ const COMMANDS_MAP = {
       remark:
         '確認加減原匯款金額之剩餘費用，例如:未搭車或多搭乘 (輸入範例: 車費查詢)',
     },
+    綁定搭乘司機: {
+      function: bindDriverId,
+      remark: '綁定搭乘司機後方可計算日後車費 (輸入範例: 綁定搭乘司機:司機ID)',
+    },
     // 可以根據需求繼續新增功能
   },
   司機: {
@@ -84,8 +88,14 @@ let echo = {}; // Bot 回傳提示字
 // ============= 共用函式 =============
 // 驗證用戶是否存在於資料庫
 async function validateUser(profile, event) {
+  // 是否有 ID 在資料庫
   const [existingUsers] = await executeSQL(
     'SELECT * FROM users WHERE line_user_id = ?',
+    [profile.userId]
+  );
+  // 是否為乘客且有 ID 在資料庫
+  const [userData] = await executeSQL(
+    'SELECT line_user_driver FROM users WHERE line_user_id = ?',
     [profile.userId]
   );
   let type = '';
@@ -107,6 +117,8 @@ async function validateUser(profile, event) {
     (event.message.text === '我是乘客' || event.message.text === '我是司機')
   ) {
     type = 'create_user'; // 創新戶
+  } else if (userData.length === 0) {
+    type = 'passenger_check'; // 確認乘客綁定
   } else if (event.message.text === '77') {
     type = 'super_user'; // 技術支援
   } else {
@@ -228,6 +240,41 @@ async function fareSearch(profile) {
   }
 }
 
+// 乘客-綁定司機的操作
+async function bindDriverId(profile, event) {
+  // 1. 擷取輸入的司機ID
+  const driverMatch = event.message.text.match(/^綁定搭乘司機[:：]?\s*(.*)$/);
+
+  if (driverMatch) {
+    const driverId = driverMatch[1]; // 取得司機ID
+
+    // 2. 檢查此ID是否存在於 users 表，且該用戶為司機
+    const [driverData] = await executeSQL(
+      'SELECT line_user_id FROM users WHERE line_user_id = ? AND line_user_type = "司機"',
+      [driverId]
+    );
+
+    if (driverData.length === 0) {
+      createResponse(
+        'text',
+        `${profile.displayName} ，您輸入錯誤司機ID 請於上方訊息查看司機ID。`
+      );
+    } else {
+      // 3. 更新使用者的 line_user_driver 欄位
+      await executeSQL(
+        'UPDATE users SET line_user_driver = ? WHERE line_user_id = ?',
+        [driverId, profile.userId]
+      );
+      createResponse('text', `${profile.displayName} ，您已成功綁定司機ID。`);
+    }
+  } else {
+    createResponse(
+      'text',
+      `${profile.displayName} ，請輸入正確格式，範例: "綁定搭乘司機:Ue3fb7c1d55c6034e50a54630a3afe02c"。`
+    );
+  }
+}
+
 // 司機-顯示司機的乘客車費計算表
 async function fareIncome(profile) {
   // 1. 執行SQL查詢來獲取特定司機的所有乘客的車費紀錄
@@ -289,7 +336,7 @@ async function handleEvent(event) {
       COMMANDS_MAP[userLineType] &&
       COMMANDS_MAP[userLineType][event.message.text];
     const userFunction = command ? command.function : null;
-    const fareTransferMatch = event.message.text.includes('車費匯款:');
+    const fareTransferMatch = event.message.text.includes('車費匯款');
 
     if (userFunction) {
       await userFunction(profile, event); // 正確指令執行對應的功能
@@ -320,7 +367,7 @@ async function handleEvent(event) {
     await handleUserTypeChange(profile, userType);
     if (userType === '乘客') {
       const [result] = await executeSQL(
-        `SELECT user_id, user_name FROM users WHERE line_user_type = '司機'`
+        `SELECT line_user_id, line_user_name FROM users WHERE line_user_type = '司機'`
       );
       let responseText = '';
       result.forEach((entry) => {
@@ -339,6 +386,12 @@ async function handleEvent(event) {
   } else if (validationResult.type === 'repeat_command') {
     // 此區塊處理重複指令
     createResponse('text', '如需切換使用者請聯絡開發人員');
+  } else if (validationResult.type === 'passenger_check') {
+    // 此區塊處理技術支援
+    createResponse(
+      'text',
+      `${profile.displayName} ，您尚未綁定司機 ID。\n請綁定搭乘司機後方可計算日後車費 (輸入範例: 綁定搭乘司機:司機ID)。`
+    );
   } else if (validationResult.type === 'super_user') {
     // 此區塊處理技術支援
     createResponse(
