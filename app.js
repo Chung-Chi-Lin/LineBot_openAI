@@ -174,9 +174,9 @@ async function fareTransfer(profile, event) {
       [profile.userId, profile.userId]
     );
     const fareAmount = Number(fareMatch[1]); // 只取車費數字
+    const currentDate = new Date(); // 當下日期
     const formattedDate = formatDate(currentDate); // 將當下時間轉成儲存資料庫
     const userFare = result[0].user_fare; // 當前使用者費用
-    const currentDate = new Date(); // 當下日期
     const lastUpdateTime = new Date(result[0].update_time); // 使用者資料最後紀錄匯款日
 
     // 2. 比較該 update_time 是否在當前月份
