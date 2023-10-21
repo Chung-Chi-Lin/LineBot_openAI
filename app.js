@@ -137,11 +137,8 @@ function formatDate(date) {
   const dd = String(date.getDate()).padStart(2, '0');
   const mm = String(date.getMonth() + 1).padStart(2, '0'); //January is 0!
   const yyyy = date.getFullYear();
-  const hh = String(date.getHours()).padStart(2, '0');
-  const min = String(date.getMinutes()).padStart(2, '0');
-  const ss = String(date.getSeconds()).padStart(2, '0');
 
-  return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 // ============= SQL函式處 =============
@@ -171,45 +168,42 @@ async function fareTransfer(profile, event) {
   const fareMatch = event.message.text.match(/^車費匯款[:：]([1-9][0-9]*)$/);
 
   if (fareMatch) {
-    const fareAmount = Number(fareMatch[1]);
-    const currentDate = new Date();
-    const formattedDate = formatDate(currentDate);
-
     // 1. 從資料庫撈取該用戶的最後一次 update_time
     const result = await executeSQL(
-      'SELECT update_time FROM fare WHERE line_user_id = ? ORDER BY update_time DESC LIMIT 1',
-      [profile.userId]
+      'SELECT user_fare, update_time FROM fare WHERE line_user_id = ? AND update_time = (SELECT update_time FROM fare WHERE line_user_id = ? ORDER BY ABS(DATEDIFF(update_time, CURDATE())) ASC LIMIT 1)',
+      [profile.userId, profile.userId]
     );
-    if (result && result.length > 0) {
-      const lastUpdateTime = new Date(result[0].update_time);
+    const fareAmount = Number(fareMatch[1]); // 只取車費數字
+    const formattedDate = formatDate(currentDate); // 將當下時間轉成儲存資料庫
+    const userFare = result[0].user_fare; // 當前使用者費用
+    const currentDate = new Date(); // 當下日期
+    const lastUpdateTime = new Date(result[0].update_time); // 使用者資料最後紀錄匯款日
 
-      // 2. 比較該 update_time 是否在當前月份
-      console.log('123', lastUpdateTime);
-      console.log('測試', lastUpdateTime.getMonth());
-      console.log('測試1', currentDate.getMonth());
-      console.log('測試2', currentDate.getFullYear());
-      console.log('測試3', currentDate.getFullYear());
-      if (
-        lastUpdateTime.getMonth() === currentDate.getMonth() &&
-        lastUpdateTime.getFullYear() === currentDate.getFullYear()
-      ) {
-        createResponse(
-          'text',
-          `${profile.displayName} ，您本月已經匯款過了，如欠費請下月匯款或請司機收到款項後再修改您的匯款紀錄。`
-        );
-        return;
-      }
+    // 2. 比較該 update_time 是否在當前月份
+    if (
+      lastUpdateTime.getMonth() === currentDate.getMonth() &&
+      lastUpdateTime.getFullYear() === currentDate.getFullYear()
+    ) {
+      createResponse(
+        'text',
+        `${profile.displayName} ，您本月已經匯款 NT$${userFare}，如欠費請下月匯款或請司機收到款項後再修改您的匯款紀錄。`
+      );
+    } else if (
+      !result ||
+      lastUpdateTime.getMonth() !== currentDate.getMonth()
+    ) {
+      // 3. 只有新月份可以儲存新數據
+      await executeSQL(
+        'INSERT INTO fare (line_user_id, user_fare, update_time) VALUES (?, ?, ?)',
+        [profile.userId, fareAmount, formattedDate]
+      );
+      createResponse(
+        'text',
+        `${profile.displayName} ，您的車費 NT$${fareAmount} 已被記錄。`
+      );
+    } else {
+      createResponse('text', '資料異常! 請輸入 77 指令，聯絡修復!');
     }
-
-    // 3. 插入數據
-    await executeSQL(
-      'INSERT INTO fare (line_user_id, user_fare, update_time) VALUES (?, ?, ?)',
-      [profile.userId, fareAmount, formattedDate]
-    );
-    createResponse(
-      'text',
-      `${profile.displayName} ，您的車費 NT$${fareAmount} 已被記錄。`
-    );
   } else {
     createResponse(
       'text',
