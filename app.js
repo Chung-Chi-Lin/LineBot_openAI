@@ -188,10 +188,7 @@ async function fareTransfer(profile, event) {
         'text',
         `${profile.displayName} ，您本月已經匯款 NT$${userFare}，如欠費請下月匯款或請司機收到款項後再修改您的匯款紀錄。`
       );
-    } else if (
-      !result ||
-      lastUpdateTime.getMonth() !== currentDate.getMonth()
-    ) {
+    } else if (lastUpdateTime.getMonth() !== currentDate.getMonth()) {
       // 3. 只有新月份可以儲存新數據
       await executeSQL(
         'INSERT INTO fare (line_user_id, user_fare, update_time) VALUES (?, ?, ?)',
