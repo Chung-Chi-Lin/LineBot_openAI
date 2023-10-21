@@ -178,7 +178,12 @@ async function fareTransfer(profile, event) {
     const formattedDate = formatDate(currentDate); // 將當下時間轉成儲存資料庫
     const userFare = result[0].user_fare; // 當前使用者費用
     const lastUpdateTime = new Date(result[0].update_time); // 使用者資料最後紀錄匯款日
-
+    console.log('lastUpdateTime', lastUpdateTime);
+    console.log('lastUpdateTime', lastUpdateTime.getMonth());
+    console.log('lastUpdateTime', lastUpdateTime.getFullYear());
+    console.log('currentDate', currentDate);
+    console.log('currentDate', currentDate.getMonth());
+    console.log('currentDate', currentDate.getFullYear());
     // 2. 比較該 update_time 是否在當前月份
     if (
       lastUpdateTime.getMonth() === currentDate.getMonth() &&
@@ -188,7 +193,7 @@ async function fareTransfer(profile, event) {
         'text',
         `${profile.displayName} ，您本月已經匯款 NT$${userFare}，如欠費請下月匯款或請司機收到款項後再修改您的匯款紀錄。`
       );
-    } else if (lastUpdateTime.getMonth() !== currentDate.getMonth()) {
+    } else {
       // 3. 只有新月份可以儲存新數據
       await executeSQL(
         'INSERT INTO fare (line_user_id, user_fare, update_time) VALUES (?, ?, ?)',
@@ -198,8 +203,6 @@ async function fareTransfer(profile, event) {
         'text',
         `${profile.displayName} ，您的車費 NT$${fareAmount} 已被記錄。`
       );
-    } else {
-      createResponse('text', '資料異常! 請輸入 77 指令，聯絡修復!');
     }
   } else {
     createResponse(
