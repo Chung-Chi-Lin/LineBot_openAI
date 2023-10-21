@@ -165,7 +165,9 @@ async function handleUserTypeChange(profile, userType) {
 // ============= 對應指令功能 =============
 // 乘客-車費匯款的操作
 async function fareTransfer(profile, event) {
-  const fareMatch = event.message.text.match(/^車費匯款[:：]([1-9][0-9]*)$/);
+  const fareMatch = event.message.text.match(
+    /^車費匯款[:：]?\s*([1-9][0-9]*)$/
+  );
 
   if (fareMatch) {
     // 1. 從資料庫撈取該用戶的最後一次 update_time
@@ -176,14 +178,9 @@ async function fareTransfer(profile, event) {
     const fareAmount = Number(fareMatch[1]); // 只取車費數字
     const currentDate = new Date(); // 當下日期
     const formattedDate = formatDate(currentDate); // 將當下時間轉成儲存資料庫
-    const userFare = result[0].user_fare; // 當前使用者費用
+    const userFare = result[0][0].user_fare; // 當前使用者費用
     const lastUpdateTime = new Date(result[0][0].update_time); // 使用者資料最後紀錄匯款日
-    console.log('lastUpdateTime', result);
-    console.log('lastUpdateTime', lastUpdateTime.getMonth());
-    console.log('lastUpdateTime', lastUpdateTime.getFullYear());
-    console.log('currentDate', currentDate);
-    console.log('currentDate', currentDate.getMonth());
-    console.log('currentDate', currentDate.getFullYear());
+
     // 2. 比較該 update_time 是否在當前月份
     if (
       lastUpdateTime.getMonth() === currentDate.getMonth() &&
@@ -191,7 +188,7 @@ async function fareTransfer(profile, event) {
     ) {
       createResponse(
         'text',
-        `${profile.displayName} ，您本月已經匯款 NT$${userFare}，如欠費請下月匯款或請司機收到款項後再修改您的匯款紀錄。`
+        `${profile.displayName} ，您本月已經匯款 NT$${userFare}。\n如欠費請下月匯款或請司機收到款項後再修改您的匯款紀錄。`
       );
     } else {
       // 3. 只有新月份可以儲存新數據
@@ -215,9 +212,10 @@ async function fareTransfer(profile, event) {
 // 乘客-車費查詢的操作
 async function fareSearch(profile) {
   const [userFare] = await executeSQL(
-    'SELECT user_fare FROM fare WHERE line_user_id = ?',
+    'SELECT user_fare FROM fare WHERE line_user_id = ? ORDER BY ABS(DATEDIFF(update_time, CURDATE())) ASC LIMIT 1',
     [profile.userId]
   );
+
   // 4. 檢查查詢結果
   if (userFare.length === 0) {
     createResponse('text', `${profile.displayName} ，您尚未有車費紀錄。`);
@@ -225,7 +223,7 @@ async function fareSearch(profile) {
     const fare = userFare[0].user_fare;
     createResponse(
       'text',
-      `${profile.displayName} ，您目前的車費為 NT$${fare}。`
+      `${profile.displayName} ，您最近的車費為 NT$${fare}。`
     );
   }
 }
