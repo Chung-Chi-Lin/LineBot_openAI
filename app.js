@@ -336,9 +336,16 @@ async function handleEvent(event) {
       [profile.userId]
     );
     if (userData.length === 0 && userLineType === '乘客') {
+      const [result] = await executeSQL(
+        `SELECT line_user_id, line_user_name FROM users WHERE line_user_type = '司機'`
+      );
+      let responseText = '';
+      result.forEach((entry) => {
+        responseText += `${entry.line_user_name} : ${entry.line_user_id}\n`;
+      });
       createResponse(
         'text',
-        `${profile.displayName} ，您尚未綁定司機 ID。\n請綁定搭乘司機後方可計算日後車費 (輸入範例: 綁定搭乘司機:司機ID)。`
+        `${profile.displayName} 您尚未綁定司機 ID。注意請先完成綁定搭乘司機後方可計算日後車費，目前司機名單為:\n${responseText}\n 請輸入以下指令，(輸入範例: 綁定搭乘司機:此位置複製上方搭乘司機對應的ID碼)`
       );
       // use reply API
       return client.replyMessage(event.replyToken, echo);
@@ -376,13 +383,12 @@ async function handleEvent(event) {
         `SELECT line_user_id, line_user_name FROM users WHERE line_user_type = '司機'`
       );
       let responseText = '';
-      console.log('測試', result);
       result.forEach((entry) => {
-        responseText += `${entry.user_name} : ${entry.user_id}\n`;
+        responseText += `${entry.line_user_name} : ${entry.line_user_id}\n`;
       });
       createResponse(
         'text',
-        `${profile.displayName} ，我已經將您切換為 ${userType} ，注意請先完成下一步綁定搭乘司機，${responseText}\n 請輸入以下指令: 綁定搭乘司機:司機ID (輸入範例: 綁定搭乘司機:ID碼)`
+        `${profile.displayName} ，我已經將您切換為 ${userType} ，注意請先完成下一步綁定搭乘司機\n${responseText}\n 輸入範例: (綁定搭乘司機:此位置複製上方搭乘司機對應的ID碼)`
       );
     } else {
       createResponse(
