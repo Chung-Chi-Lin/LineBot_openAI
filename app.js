@@ -218,7 +218,7 @@ async function fareTransfer(profile, event) {
 // 乘客-車費查詢的操作
 async function fareSearch(profile) {
   const [userFare] = await executeSQL(
-    'SELECT user_fare FROM fare WHERE line_user_id = ? ORDER BY ABS(DATEDIFF(update_time, CURDATE())) ASC LIMIT 1',
+    'SELECT user_fare, update_time FROM fare WHERE line_user_id = ? ORDER BY ABS(DATEDIFF(update_time, CURDATE())) ASC LIMIT 1',
     [profile.userId]
   );
 
@@ -227,9 +227,10 @@ async function fareSearch(profile) {
     createResponse('text', `${profile.displayName} ，您尚未有車費紀錄。`);
   } else {
     const fare = userFare[0].user_fare;
+    const updateTime = userFare[0].update_time;
     createResponse(
       'text',
-      `${profile.displayName} ，您最近的車費為 NT$${fare}。`
+      `${profile.displayName} ，您最近的車費及時間為 NT$${fare} ${updateTime}。`
     );
   }
 }
