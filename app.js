@@ -64,9 +64,9 @@ const COMMANDS_MAP = {
       remark:
         '確認加減原匯款金額之剩餘費用，例如:未搭車或多搭乘 (輸入範例: 車費查詢)',
     },
-    綁定搭乘司機: {
+    綁定司機: {
       function: bindDriverId,
-      remark: '綁定搭乘司機後方可計算日後車費 (輸入範例: 綁定搭乘司機:司機ID)',
+      remark: '綁定司機後方可計算日後車費 (輸入範例: 綁定司機:司機ID)',
     },
     // 可以根據需求繼續新增功能
   },
@@ -245,8 +245,9 @@ async function fareSearch(profile) {
 // 乘客-綁定司機的操作
 async function bindDriverId(profile, event) {
   // 1. 擷取輸入的司機ID
-  const driverMatch = event.message.text.match(/^綁定搭乘司機[:：]?\s*(.*)$/);
-
+  const driverMatch = event.message.text.match(/^綁定司機[:：]?\s*(.*)$/);
+  console.log('測試', driverMatch);
+  console.log('測試1', event.message.text);
   if (driverMatch) {
     const driverId = driverMatch[1]; // 取得司機ID
 
@@ -272,7 +273,7 @@ async function bindDriverId(profile, event) {
   } else {
     createResponse(
       'text',
-      `${profile.displayName} ，請輸入正確格式，範例: "綁定搭乘司機:Ue3fb7c1d55c6034e50a54630a3afe02c"。`
+      `${profile.displayName} ，請輸入正確格式，範例: "綁定司機:Ue3fb7c1d55c6034e50a54630a3afe02c"。`
     );
   }
 }
@@ -339,13 +340,18 @@ async function handleEvent(event) {
       COMMANDS_MAP[userLineType][event.message.text];
     const userFunction = command ? command.function : null;
     const fareTransferMatch = event.message.text.includes('車費匯款');
+    const driverMatch = event.message.text.includes('綁定司機');
     // 是否為乘客判斷有無綁定司機ID
     const [userData] = await executeSQL(
       'SELECT line_user_driver FROM users WHERE line_user_id = ?',
       [profile.userId]
     );
 
-    if (userData[0].line_user_driver === null && userLineType === '乘客') {
+    if (
+      !userData[0].line_user_driver &&
+      userLineType === '乘客' &&
+      !driverMatch
+    ) {
       const [result] = await executeSQL(
         `SELECT line_user_id, line_user_name FROM users WHERE line_user_type = '司機'`
       );
@@ -355,7 +361,7 @@ async function handleEvent(event) {
       });
       createResponse(
         'text',
-        `${profile.displayName} 您尚未綁定司機 ID。注意請先完成綁定搭乘司機後方可計算日後車費，目前司機名單為:\n${responseText}\n 請輸入以下指令，(輸入範例: 綁定搭乘司機:此位置複製上方搭乘司機對應的ID碼)`
+        `${profile.displayName} 您尚未綁定司機 ID。注意請先完成綁定司機後方可計算日後車費，目前司機名單為:\n${responseText}\n 請輸入以下指令，(輸入範例: 綁定司機:此位置複製上方搭乘司機對應的ID碼)`
       );
       // use reply API
       return client.replyMessage(event.replyToken, echo);
@@ -398,7 +404,7 @@ async function handleEvent(event) {
       });
       createResponse(
         'text',
-        `${profile.displayName} ，我已經將您切換為 ${userType} ，注意請先完成下一步綁定搭乘司機\n${responseText}\n 輸入範例: (綁定搭乘司機:此位置複製上方搭乘司機對應的ID碼)`
+        `${profile.displayName} ，我已經將您切換為 ${userType} ，注意請先完成下一步綁定司機\n${responseText}\n 輸入範例: (綁定司機:此位置複製上方搭乘司機對應的ID碼)`
       );
     } else {
       createResponse(
