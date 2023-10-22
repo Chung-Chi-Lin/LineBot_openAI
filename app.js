@@ -245,7 +245,7 @@ async function fareSearch(profile) {
 // 乘客-綁定司機的操作
 async function bindDriverId(profile, event) {
   // 1. 擷取輸入的司機ID
-  const driverMatch = event.message.text.match(/^綁定司機[:：]?\s*(.*)$/);
+  const driverMatch = event.message.text.match(/^綁定司機\s*[:：]?\s*(.*)$/);
   if (driverMatch) {
     const driverId = driverMatch[1]; // 取得司機ID
 
@@ -271,7 +271,7 @@ async function bindDriverId(profile, event) {
   } else {
     createResponse(
       'text',
-      `${profile.displayName} ，請輸入正確格式，範例: "綁定司機:Ue3fb7c1d55c6034e50a54630a3afe02c"。`
+      `${profile.displayName} ，請輸入正確格式，範例: "綁定司機:Ue3fb7c1..."。`
     );
   }
 }
