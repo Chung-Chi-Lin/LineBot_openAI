@@ -337,6 +337,7 @@ async function handleEvent(event) {
       'SELECT line_user_driver FROM users WHERE line_user_id = ?',
       [profile.userId]
     );
+    console.log('測試', userData);
     if (userData.length === 0 && userLineType === '乘客') {
       const [result] = await executeSQL(
         `SELECT line_user_id, line_user_name FROM users WHERE line_user_type = '司機'`
