@@ -174,45 +174,45 @@ async function fareTransfer(profile, event) {
     /^車費匯款[:：]?\s*([1-9][0-9]*)$/
   );
 
-  if (fareMatch) {
-    // 1. 從資料庫撈取該用戶的最後一次 update_time
-    const result = await executeSQL(
-      'SELECT user_fare, update_time FROM fare WHERE line_user_id = ? AND update_time = (SELECT update_time FROM fare WHERE line_user_id = ? ORDER BY ABS(DATEDIFF(update_time, CURDATE())) ASC LIMIT 1)',
-      [profile.userId, profile.userId]
-    );
-    console.log('測試', result);
-    const fareAmount = Number(fareMatch[1]); // 只取車費數字
-    const currentDate = new Date(); // 當下日期
-    const formattedDate = formatDate(currentDate); // 將當下時間轉成儲存資料庫
-    const userFare = result[0][0].user_fare; // 當前使用者費用
-    const lastUpdateTime = new Date(result[0][0].update_time); // 使用者資料最後紀錄匯款日
-
-    // 2. 比較該 update_time 是否在當前月份
-    if (
-      lastUpdateTime.getMonth() === currentDate.getMonth() &&
-      lastUpdateTime.getFullYear() === currentDate.getFullYear()
-    ) {
-      createResponse(
-        'text',
-        `${profile.displayName} ，您本月已經匯款 NT$${userFare}。\n如欠費請下月匯款或請司機收到款項後再修改您的匯款紀錄。`
-      );
-    } else {
-      // 3. 只有新月份可以儲存新數據
-      await executeSQL(
-        'INSERT INTO fare (line_user_id, user_fare, update_time) VALUES (?, ?, ?)',
-        [profile.userId, fareAmount, formattedDate]
-      );
-      createResponse(
-        'text',
-        `${profile.displayName} ，您的車費 NT$${fareAmount} 已被記錄。`
-      );
-    }
-  } else {
-    createResponse(
+  if (!fareMatch) {
+    return createResponse(
       'text',
       `${profile.displayName} ，請輸入正確格式 範例: (車費匯款:1200)`
     );
   }
+
+  const fareAmount = Number(fareMatch[1]);
+  const result = await executeSQL(
+    'SELECT user_fare, update_time FROM fare WHERE line_user_id = ? AND update_time = (SELECT update_time FROM fare WHERE line_user_id = ? ORDER BY ABS(DATEDIFF(update_time, CURDATE())) ASC LIMIT 1)',
+    [profile.userId, profile.userId]
+  );
+
+  const fareData = result[0] && result[0][0];
+  const currentDate = new Date();
+
+  if (fareData) {
+    const lastUpdateTime = new Date(fareData.update_time);
+    const isSameMonth =
+      lastUpdateTime.getMonth() === currentDate.getMonth() &&
+      lastUpdateTime.getFullYear() === currentDate.getFullYear();
+
+    if (isSameMonth) {
+      return createResponse(
+        'text',
+        `${profile.displayName} ，您本月已經匯款 NT$${fareData.user_fare}。\n如欠費請下月匯款或請司機收到款項後再修改您的匯款紀錄。`
+      );
+    }
+  }
+
+  await executeSQL(
+    'INSERT INTO fare (line_user_id, user_fare, update_time) VALUES (?, ?, ?)',
+    [profile.userId, fareAmount, formatDate(currentDate)]
+  );
+
+  return createResponse(
+    'text',
+    `${profile.displayName} ，您的車費 NT$${fareAmount} 已被記錄。`
+  );
 }
 
 // 乘客-車費查詢的操作
