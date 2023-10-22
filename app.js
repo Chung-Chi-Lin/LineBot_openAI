@@ -246,8 +246,6 @@ async function fareSearch(profile) {
 async function bindDriverId(profile, event) {
   // 1. 擷取輸入的司機ID
   const driverMatch = event.message.text.match(/^綁定司機[:：]?\s*(.*)$/);
-  console.log('測試', driverMatch);
-  console.log('測試1', event.message.text);
   if (driverMatch) {
     const driverId = driverMatch[1]; // 取得司機ID
 
@@ -340,6 +338,7 @@ async function handleEvent(event) {
       COMMANDS_MAP[userLineType][event.message.text];
     const userFunction = command ? command.function : null;
     const fareTransferMatch = event.message.text.includes('車費匯款');
+    const bindDriverMatch = event.message.text.includes('綁定司機');
     const driverMatch = event.message.text.includes('綁定司機');
     // 是否為乘客判斷有無綁定司機ID
     const [userData] = await executeSQL(
@@ -369,8 +368,16 @@ async function handleEvent(event) {
     // ==========================================================
     if (userFunction) {
       await userFunction(profile, event); // 正確指令執行對應的功能
-    } else if (fareTransferMatch && userLineType === '乘客') {
-      await fareTransfer(profile, event); // 車費匯款特別處理
+    } else if (
+      (fareTransferMatch || bindDriverMatch) &&
+      userLineType === '乘客'
+    ) {
+      if (fareTransferMatch) {
+        await fareTransfer(profile, event); // 車費匯款特別處理
+      }
+      if (bindDriverMatch) {
+        await bindDriverId(profile, event); // 綁定司機 ID 特別處理
+      }
     } else {
       if (userLineType) {
         if (event.message.text === '指令') {
