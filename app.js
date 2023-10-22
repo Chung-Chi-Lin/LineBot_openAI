@@ -180,6 +180,7 @@ async function fareTransfer(profile, event) {
       'SELECT user_fare, update_time FROM fare WHERE line_user_id = ? AND update_time = (SELECT update_time FROM fare WHERE line_user_id = ? ORDER BY ABS(DATEDIFF(update_time, CURDATE())) ASC LIMIT 1)',
       [profile.userId, profile.userId]
     );
+    console.log('測試', result);
     const fareAmount = Number(fareMatch[1]); // 只取車費數字
     const currentDate = new Date(); // 當下日期
     const formattedDate = formatDate(currentDate); // 將當下時間轉成儲存資料庫
