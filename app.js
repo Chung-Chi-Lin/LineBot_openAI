@@ -82,7 +82,11 @@ const COMMANDS_MAP = {
 		乘客車資計算: {
 			function: passengerFareCount,
 			remark: '先輸入乘客資訊後取得目前乘客名稱與更改資訊ID，複製對應ID為乘客加減車資紀錄。\n(複製修改範例> Ue3fb7c1...:+100 備註:Josh，10/10多搭車)\nPS:備註限30字內，建議加入乘客名，增加辨識。',
-		}
+		},
+		車資預算: {
+			function: totalFareCount,
+			remark: '先輸入乘客資訊後取得目前乘客名稱與更改資訊ID，複製對應ID為乘客加減車資紀錄。\n(複製修改範例> Ue3fb7c1...:+100 備註:Josh，10/10多搭車)\nPS:備註限30字內，建議加入乘客名，增加辨識。',
+		},
 		// 可以根據需求繼續新增功能
 	}
 };
@@ -232,20 +236,53 @@ async function fareSearch(profile) {
 			'SELECT user_fare, update_time FROM fare WHERE line_user_id = ? ORDER BY ABS(DATEDIFF(update_time, CURDATE())) ASC LIMIT 1',
 			[profile.userId]
 	);
+	const fareDetails = await executeSQL(
+			'SELECT user_fare_count, user_remark, update_time FROM fare_count WHERE line_user_id = ? AND MONTH(update_time) = MONTH(CURDATE()) AND YEAR(update_time) = YEAR(CURDATE()) ORDER BY update_time DESC',
+			[profile.userId]
+	);
+	const fare = userFare[0].user_fare;
 
-	// 4. 檢查查詢結果
 	if (userFare.length === 0) {
-		createResponse('text', `${profile.displayName} ，您尚未有車費紀錄。`);
-	} else {
-		const fare = userFare[0].user_fare;
+		createResponse('text', `${profile.displayName}，您尚未有車費紀錄。`);
+	} else if (fareDetails.length === 0) {
 		const updateTime = new Date(userFare[0].update_time);
 		const formattedDate = formatDateToChinese(updateTime);
 		createResponse(
 				'text',
 				`${profile.displayName} ，您最近的車費及時間為 NT$${fare} ${formattedDate}。`
 		);
+	} else {
+		let message = `${profile.displayName}，您最近的車費如下:\n`;
+		let totalFare = fare; // 原始車費
+
+		for (const fareDetail of fareDetails) {
+			const date = formatDateToChinese(new Date(fareDetail.update_time));
+			totalFare += fareDetail.user_fare_count;
+			message += `${date} 原車費NT$${totalFare - fareDetail.user_fare_count} ${fareDetail.user_fare_count >= 0 ? '+' : ''}${fareDetail.user_fare_count} = ${totalFare} ， 原因為: ${fareDetail.user_remark || '無'}\n`;
+		}
+
+		createResponse('text', message);
 	}
 }
+// async function fareSearch(profile) {
+// 	const [userFare] = await executeSQL(
+// 			'SELECT user_fare, update_time FROM fare WHERE line_user_id = ? ORDER BY ABS(DATEDIFF(update_time, CURDATE())) ASC LIMIT 1',
+// 			[profile.userId]
+// 	);
+//
+// 	// 4. 檢查查詢結果
+// 	if (userFare.length === 0) {
+// 		createResponse('text', `${profile.displayName} ，您尚未有車費紀錄。`);
+// 	} else {
+// 		const fare = userFare[0].user_fare;
+// 		const updateTime = new Date(userFare[0].update_time);
+// 		const formattedDate = formatDateToChinese(updateTime);
+// 		createResponse(
+// 				'text',
+// 				`${profile.displayName} ，您最近的車費及時間為 NT$${fare} ${formattedDate}。`
+// 		);
+// 	}
+// }
 
 // 乘客-綁定司機的操作
 async function bindDriverId(profile, event) {
