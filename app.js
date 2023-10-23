@@ -335,6 +335,7 @@ async function passengerFareCount(profile, event) {
 
 	const userId = inputMatch[1];
 	const fareChange = parseInt(inputMatch[2], 10);
+	console.log("測試", inputMatch[2]);
 	const remark = inputMatch[3];
 
 	// 查詢line_user_driver是否符合profile.userID
@@ -353,24 +354,24 @@ async function passengerFareCount(profile, event) {
 		createResponse('text', `${profile.displayName} ，請輸入正確的用戶 ID。`);
 		return;
 	}
-	// 從fare表取出對應用戶ID的user_fare並進行計算
-	const [fareData] = await executeSQL('SELECT user_fare FROM fare WHERE line_user_id = ?', [userId]);
-	let newFare = 0;
-
-	if (fareData && fareData.length > 0) {
-		newFare = fareData[0].user_fare + fareChange;
-	} else {
-		createResponse('text', `${profile.displayName} ，目前用戶尚無匯款費用可供計算。`);
-		return;
-	}
+	// // 從fare表取出對應用戶ID的user_fare並進行計算
+	// const [fareData] = await executeSQL('SELECT user_fare FROM fare WHERE line_user_id = ?', [userId]);
+	// let newFare = 0;
+	//
+	// if (fareData && fareData.length > 0) {
+	// 	newFare = fareData[0].user_fare + fareChange;
+	// } else {
+	// 	createResponse('text', `${profile.displayName} ，目前用戶尚無匯款費用可供計算。`);
+	// 	return;
+	// }
 
 	// 儲存到fare_count表
 	await executeSQL(
 			'INSERT INTO fare_count (line_user_id, user_fare_count, user_remark) VALUES (?, ?, ?)',
-			[userId, newFare, remark]
+			[userId, fareChange, remark]
 	);
 
-	createResponse('text', `乘客:${passengerName} ，車費資料計算後為 NT$${newFare} 已成功更新!`);
+	createResponse('text', `乘客:${passengerName} ，車費資料 ${fareChange} 已成功紀錄!`);
 }
 
 // 主要處理指令函式
