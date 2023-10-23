@@ -346,6 +346,8 @@ async function passengerFareCount(profile, event) {
 
 	// 檢查line_user_id是否存在於剛查詢的driverData表中
 	const userData = driverData.find(data => data.line_user_id === userId);
+	console.log("測試", driverData)
+	console.log("測試1", userId)
 	if (!userData) {
 		createResponse('text', `${profile.displayName} ，請輸入正確的用戶 ID。`);
 		return;
