@@ -368,7 +368,7 @@ async function passengerFareCount(profile, event) {
 
 	// 儲存到fare_count表
 	await executeSQL(
-			'INSERT INTO fare_count (line_user_id, user_fare_count, user_remark, update_time) VALUES (?, ?, ?)',
+			'INSERT INTO fare_count (line_user_id, user_fare_count, user_remark, update_time) VALUES (?, ?, ?, ?)',
 			[userId, fareChange, remark, formatDate(currentDate)]
 	);
 
