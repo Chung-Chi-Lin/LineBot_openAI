@@ -345,14 +345,14 @@ async function passengerFareCount(profile, event) {
 	}
 
 	// 檢查line_user_id是否存在於剛查詢的driverData表中
-	const userData = driverData.find(data => data.line_user_id === userId);
-	console.log("測試", driverData)
-	console.log("測試1", userId)
+	const actualDriverData = driverData[0];
+	const userData = actualDriverData.find(data => data.line_user_id === userId); // 對應乘客資訊
+	const passengerName = userData.line_user_name; // 乘客姓名
+
 	if (!userData) {
 		createResponse('text', `${profile.displayName} ，請輸入正確的用戶 ID。`);
 		return;
 	}
-
 	// 從fare表取出對應用戶ID的user_fare並進行計算
 	const [fareData] = await executeSQL('SELECT user_fare FROM fare WHERE line_user_id = ?', [userId]);
 	let newFare = 0;
@@ -370,7 +370,7 @@ async function passengerFareCount(profile, event) {
 			[userId, newFare, remark]
 	);
 
-	createResponse('text', `${profile.displayName} ，資料已成功更新。`);
+	createResponse('text', `乘客:${passengerName} ，車費資料計算後為 NT$${newFare} 已成功更新!`);
 }
 
 // 主要處理指令函式
