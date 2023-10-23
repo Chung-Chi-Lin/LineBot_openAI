@@ -239,15 +239,14 @@ async function fareSearch(profile) {
     [profile.userId]
   );
   const fareDetails = await executeSQL(
-    'SELECT user_fare_count, user_remark, update_time FROM fare_count WHERE line_user_id = ? AND MONTH(update_time) = MONTH(CURDATE()) AND YEAR(update_time) = YEAR(CURDATE()) ORDER BY update_time DESC',
+    'SELECT user_fare_count, user_remark, update_time FROM fare_count WHERE line_user_id = ? AND MONTH(update_time) = MONTH(CURDATE()) AND YEAR(update_time) = YEAR(CURDATE()) ORDER BY update_time ASC', // 修改了這裡的排序
     [profile.userId]
   );
   const fare = userFare[0].user_fare;
-  console.log('測試', userFare);
-  console.log('測試1', fareDetails);
+
   if (userFare.length === 0) {
     createResponse('text', `${profile.displayName}，您尚未有車費紀錄。`);
-  } else if (fareDetails.length === 0) {
+  } else if (fareDetails[0].length === 0) {
     const updateTime = new Date(userFare[0].update_time);
     const formattedDate = formatDateToChinese(updateTime);
     createResponse(
@@ -255,22 +254,23 @@ async function fareSearch(profile) {
       `${profile.displayName} ，您最近的車費及時間為 NT$${fare} ${formattedDate}。`
     );
   } else {
-    let message = `${profile.displayName}，您最近的車費如下:\n`;
+    let message = `${profile.displayName}，您本月的車費細項如下:\n`;
     let totalFare = fare; // 原始車費
 
-    for (const fareDetail of fareDetails) {
+    for (const fareDetail of fareDetails[0]) {
       const date = formatDateToChinese(new Date(fareDetail.update_time));
       totalFare += fareDetail.user_fare_count;
-      message += `${date} 原車費NT$${totalFare - fareDetail.user_fare_count} ${
+      message += `${date} 原車費NT$${totalFare - fareDetail.user_fare_count}${
         fareDetail.user_fare_count >= 0 ? '+' : ''
-      }${fareDetail.user_fare_count} = ${totalFare} ， 原因為: ${
+      }${fareDetail.user_fare_count} = NT$${totalFare} ， 原因為: ${
         fareDetail.user_remark || '無'
-      }\n`;
+      }\n`; // 進一步調整了這裡的格式
     }
 
     createResponse('text', message);
   }
 }
+
 // async function fareSearch(profile) {
 // 	const [userFare] = await executeSQL(
 // 			'SELECT user_fare, update_time FROM fare WHERE line_user_id = ? ORDER BY ABS(DATEDIFF(update_time, CURDATE())) ASC LIMIT 1',
