@@ -335,7 +335,7 @@ async function passengerFareCount(profile, event) {
 
 	const userId = inputMatch[1];
 	const fareChange = parseInt(inputMatch[2], 10);
-	console.log("測試", inputMatch[2]);
+
 	const remark = inputMatch[3];
 
 	// 查詢line_user_driver是否符合profile.userID
@@ -349,6 +349,7 @@ async function passengerFareCount(profile, event) {
 	const actualDriverData = driverData[0];
 	const userData = actualDriverData.find(data => data.line_user_id === userId); // 對應乘客資訊
 	const passengerName = userData.line_user_name; // 乘客姓名
+	const currentDate = new Date();
 
 	if (!userData) {
 		createResponse('text', `${profile.displayName} ，請輸入正確的用戶 ID。`);
@@ -367,11 +368,11 @@ async function passengerFareCount(profile, event) {
 
 	// 儲存到fare_count表
 	await executeSQL(
-			'INSERT INTO fare_count (line_user_id, user_fare_count, user_remark) VALUES (?, ?, ?)',
-			[userId, fareChange, remark]
+			'INSERT INTO fare_count (line_user_id, user_fare_count, user_remark, update_time) VALUES (?, ?, ?)',
+			[userId, fareChange, remark, formatDate(currentDate)]
 	);
 
-	createResponse('text', `乘客:${passengerName} ，車費資料 ${fareChange} 已成功紀錄!`);
+	createResponse('text', `${formatDateToChinese(currentDate)} 乘客:${passengerName} ，車費資料 ${fareChange} 已成功紀錄!`);
 }
 
 // 主要處理指令函式
