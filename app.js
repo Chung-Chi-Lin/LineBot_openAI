@@ -326,7 +326,7 @@ async function passengerInfo(profile) {
 
 // 司機-計算乘客車資
 async function passengerFareCount(profile, event) {
-	const inputMatch = event.message.text.match(/^[a-zA-Z0-9]+\s*:?\s*[+-]\d+$/);
+	const inputMatch = event.message.text.match(/^([a-zA-Z0-9]+)\s*:? ?([+-]\d+)\s*備註:? ?(.+)/);
 
 	if (!inputMatch) {
 		createResponse('text', `${profile.displayName} ，請輸入正確格式，範例: "Ue3fb7c1...:+100 備註:Josh，10/10多搭車"。`);
@@ -392,7 +392,7 @@ async function handleEvent(event) {
 		const userFunction = command ? command.function : null;
 		const fareTransferMatch = event.message.text.includes('車費匯款'); // 乘客
 		const bindDriverMatch = event.message.text.includes('綁定司機'); // 乘客
-		const FareCountCommandsMatch = event.message.text.match(/^[a-zA-Z0-9]+\s*:?\s*[+-]\d+$/);
+		const FareCountCommandsMatch = event.message.text.match(/^([a-zA-Z0-9]+)\s*:? ?([+-]\d+)\s*備註:? ?(.+)/);
 
 		// 是否為乘客判斷有無綁定司機ID
 		const [userData] = await executeSQL(
