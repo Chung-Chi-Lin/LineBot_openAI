@@ -6,18 +6,18 @@ const mysql = require('mysql2/promise');
 
 // create LINE、SQL SDK config from env variables
 const config = {
-    channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
-    channelSecret: process.env.CHANNEL_SECRET,
+  channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
+  channelSecret: process.env.CHANNEL_SECRET,
 };
 
 const pool = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
 
 // create LINE SDK client
@@ -29,26 +29,26 @@ const app = express();
 
 // upTimeRobot 用來監控伺服器是否正常運作
 app.get('/healthcheck', (req, res) => {
-    res.send('OK');
+  res.send('OK');
 });
 
 // register a webhook handler with middleware
 app.post('/callback', line.middleware(config), (req, res) => {
-    Promise.all(req.body.events.map(handleEvent))
-        .then((result) => res.json(result))
-        .catch((err) => {
-            console.error(err);
-            // 回應 LINE 用戶一個錯誤訊息
-            const errorMessage = {
-                type: 'text',
-                text: '資料處理中，請稍後重試',
-            };
-            return client
-                .replyMessage(req.body.events[0].replyToken, errorMessage)
-                .then(() => {
-                    res.status(500).end();
-                });
+  Promise.all(req.body.events.map(handleEvent))
+    .then((result) => res.json(result))
+    .catch((err) => {
+      console.error(err);
+      // 回應 LINE 用戶一個錯誤訊息
+      const errorMessage = {
+        type: 'text',
+        text: '資料處理中，請稍後重試',
+      };
+      return client
+        .replyMessage(req.body.events[0].replyToken, errorMessage)
+        .then(() => {
+          res.status(500).end();
         });
+    });
 });
 
 // =========================== 主要事件處理處 ===========================
@@ -84,7 +84,7 @@ const COMMANDS_MAP = {
             remark: '先輸入乘客資訊後取得目前乘客名稱與更改資訊ID，複製對應ID為乘客加減車資紀錄。\n(複製修改範例> Ue3fb7c1...:+100 備註:Josh，10/10多搭車)\nPS:備註限30字內，建議加入乘客名，增加辨識。',
         }
         // 可以根據需求繼續新增功能
-    },
+    }
 };
 let echo = {}; // Bot 回傳提示字
 
