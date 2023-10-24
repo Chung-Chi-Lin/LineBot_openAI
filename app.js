@@ -447,16 +447,17 @@ async function totalFareCount(profile) {
 
     // 檢查是否有資料
     if (fares[0].length > 0) {
-      fareAmount = fares[0].user_fare;
+      fareAmount = fares[0][0].user_fare;
       totalIncome += fareAmount;
     }
-
+    console.log("測試", fares[0])
+    console.log("測試1", fares[0][0].user_fare)
     // 3. 根據 line_user_id 去 fare_count 表格中找對應的資料
     const fareCounts = await executeSQL(
         'SELECT user_fare_count FROM fare_count WHERE line_user_id = ? AND MONTH(update_time) = MONTH(CURDATE()) AND YEAR(update_time) = YEAR(CURDATE())',
         [passenger.line_user_id]
     );
-    console.log("測試fares", fareCounts)
+
     let fareCountAmount = 0; // 乘客的 fare_count 總和
     for (const fareCount of fareCounts[0]) {
       fareCountAmount += fareCount.user_fare_count;
