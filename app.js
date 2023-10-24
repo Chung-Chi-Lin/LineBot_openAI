@@ -423,7 +423,7 @@ async function totalFareCount(profile) {
   );
   console.log("測試passengers", passengers)
   // 檢查是否有資料
-  if (passengers.length === 0) {
+  if (passengers[0].length === 0) {
     createResponse(
         'text',
         `${profile.displayName} ，目前名下無其他乘客。`
@@ -436,7 +436,7 @@ async function totalFareCount(profile) {
 
   let totalIncome = 0; // 總共收入
 
-  for (const passenger of passengers) {
+  for (const passenger of passengers[0]) {
     // 2. 根據 line_user_id 去 fare 表格中找對應當月的資料
     const fares = await executeSQL(
         'SELECT user_fare, update_time FROM fare WHERE line_user_id = ? AND MONTH(update_time) = MONTH(CURDATE()) AND YEAR(update_time) = YEAR(CURDATE())',
