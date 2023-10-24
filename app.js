@@ -85,10 +85,10 @@ const COMMANDS_MAP = {
       remark:
         '先輸入乘客資訊後取得目前乘客名稱與更改資訊ID，複製對應ID為乘客加減車資紀錄。複製範例修改>\n Ue3fb7c1:+100 備註:Josh多搭車\nPS:備註限30字內，建議加入乘客名，增加辨識',
     },
-    // 車資預算: {
-    // 	function: totalFareCount,
-    // 	remark: '先輸入乘客資訊後取得目前乘客名稱與更改資訊ID，複製對應ID為乘客加減車資紀錄。\n(複製修改範例> Ue3fb7c1...:+100 備註:Josh，10/10多搭車)\nPS:備註限30字內，建議加入乘客名，增加辨識。',
-    // },
+    車資收入: {
+    	function: totalFareCount,
+    	remark: '取得名下所有乘客收取費用加總 (輸入範例> 車資收入)',
+    },
     // 可以根據需求繼續新增功能
   },
 };
@@ -260,9 +260,9 @@ async function fareSearch(profile) {
     for (const fareDetail of fareDetails[0]) {
       const date = formatDateToChinese(new Date(fareDetail.update_time));
       totalFare += fareDetail.user_fare_count;
-      message += `${date} 原車費NT$${totalFare - fareDetail.user_fare_count}${
+      message += `\n> ${date} 原車費NT$${totalFare - fareDetail.user_fare_count}${
         fareDetail.user_fare_count >= 0 ? '+' : ''
-      }${fareDetail.user_fare_count} = NT$${totalFare} ， 原因為: ${
+      }${fareDetail.user_fare_count} = 剩餘NT$${totalFare} ， 原因為: ${
         fareDetail.user_remark || '無'
       }\n`; // 進一步調整了這裡的格式
     }
@@ -270,26 +270,6 @@ async function fareSearch(profile) {
     createResponse('text', message);
   }
 }
-
-// async function fareSearch(profile) {
-// 	const [userFare] = await executeSQL(
-// 			'SELECT user_fare, update_time FROM fare WHERE line_user_id = ? ORDER BY ABS(DATEDIFF(update_time, CURDATE())) ASC LIMIT 1',
-// 			[profile.userId]
-// 	);
-//
-// 	// 4. 檢查查詢結果
-// 	if (userFare.length === 0) {
-// 		createResponse('text', `${profile.displayName} ，您尚未有車費紀錄。`);
-// 	} else {
-// 		const fare = userFare[0].user_fare;
-// 		const updateTime = new Date(userFare[0].update_time);
-// 		const formattedDate = formatDateToChinese(updateTime);
-// 		createResponse(
-// 				'text',
-// 				`${profile.displayName} ，您最近的車費及時間為 NT$${fare} ${formattedDate}。`
-// 		);
-// 	}
-// }
 
 // 乘客-綁定司機的操作
 async function bindDriverId(profile, event) {
@@ -368,7 +348,7 @@ async function passengerInfo(profile) {
   }
 }
 
-// 司機-計算乘客車資
+// 司機-紀錄乘客車資
 async function passengerFareCount(profile, event) {
   const inputMatch = event.message.text.match(
     /^([a-zA-Z0-9]+)\s*:? ?([+-]\d+)\s*備註:? ?(.+)/
@@ -434,6 +414,90 @@ async function passengerFareCount(profile, event) {
   );
 }
 
+// 司機-取得乘客匯款收入
+async function totalFareCount(profile) {
+  // 1. 從 users 表找到 line_user_driver 所有符合 profile.userId 的資料
+  const passengers = await executeSQL(
+      'SELECT line_user_id, line_user_name FROM users WHERE line_user_driver = ?',
+      [profile.userId]
+  );
+  console.log("測試passengers", passengers)
+  // 檢查是否有資料
+  if (passengers.length === 0) {
+    createResponse(
+        'text',
+        `${profile.displayName} ，目前名下無其他乘客。`
+    );
+    return;
+  }
+
+  // 存儲每個乘客的車費細節
+  const passengerDetails = [];
+
+  let totalIncome = 0; // 總共收入
+
+  for (const passenger of passengers) {
+    // 2. 根據 line_user_id 去 fare 表格中找對應當月的資料
+    const fares = await executeSQL(
+        'SELECT user_fare, update_time FROM fare WHERE line_user_id = ? AND MONTH(update_time) = MONTH(CURDATE()) AND YEAR(update_time) = YEAR(CURDATE())',
+        [passenger.line_user_id]
+    );
+    console.log("測試fares", fares)
+    let fareAmount = 0; // 乘客的車費
+
+    // 檢查是否有資料
+    if (fares.length > 0) {
+      fareAmount = fares[0].user_fare;
+      totalIncome += fareAmount;
+    }
+
+    // 3. 根據 line_user_id 去 fare_count 表格中找對應的資料
+    const fareCounts = await executeSQL(
+        'SELECT user_fare_count FROM fare_count WHERE line_user_id = ? AND MONTH(update_time) = MONTH(CURDATE()) AND YEAR(update_time) = YEAR(CURDATE())',
+        [passenger.line_user_id]
+    );
+
+    let fareCountAmount = 0; // 乘客的 fare_count 總和
+    for (const fareCount of fareCounts) {
+      fareCountAmount += fareCount.user_fare_count;
+    }
+
+    if (fares.length === 0 && fareCounts.length === 0) {
+      passengerDetails.push({
+        name: passenger.line_user_name,
+        noRecord: true
+      });
+    } else {
+      passengerDetails.push({
+        name: passenger.line_user_name,
+        totalFare: fareAmount + fareCountAmount,
+        fareCount: fareCountAmount
+      });
+    }
+  }
+
+  // 根據乘客的車費細節生成回應消息
+  let message = `10月份車資\n\n`;
+
+  for (const detail of passengerDetails) {
+    if (detail.noRecord) {
+      message += `乘客: ${detail.name} 此月份尚無匯款紀錄\n`;
+    } else {
+      message += `乘客: ${detail.name} 車資為: ${detail.totalFare}`;
+      if (detail.fareCount > 0) {
+        message += ` 餘${detail.fareCount}`;
+      } else if (detail.fareCount < 0) {
+        message += ` 欠${Math.abs(detail.fareCount)}`;
+      }
+      message += `\n`;
+    }
+  }
+
+  message += `總共收入: ${totalIncome}`;
+
+  createResponse('text', message);
+}
+
 // 主要處理指令函式
 async function handleEvent(event) {
   if (event.type !== 'message' || event.message.type !== 'text') {
@@ -486,10 +550,8 @@ async function handleEvent(event) {
     // ==========================================================
     if (userFunction) {
       await userFunction(profile, event); // 正確指令執行對應的功能
-    } else if (
-      (fareTransferMatch || bindDriverMatch) &&
-      userLineType === '乘客'
-    ) {
+    } else if ((fareTransferMatch || bindDriverMatch) && userLineType === '乘客')
+    {
       if (fareTransferMatch) {
         await fareTransfer(profile, event); // 車費匯款特別處理
       }
