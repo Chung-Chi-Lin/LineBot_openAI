@@ -450,7 +450,7 @@ async function totalFareCount(profile) {
       fareAmount = fares[0][0].user_fare;
       totalIncome += fareAmount;
     }
-    console.log("測試", fares[0])
+
     console.log("測試1", fares[0][0].user_fare)
     // 3. 根據 line_user_id 去 fare_count 表格中找對應的資料
     const fareCounts = await executeSQL(
@@ -471,7 +471,7 @@ async function totalFareCount(profile) {
     } else {
       passengerDetails.push({
         name: passenger.line_user_name,
-        totalFare: fareAmount + fareCountAmount,
+        totalFare: fareAmount,
         fareCount: fareCountAmount
       });
     }
@@ -484,11 +484,11 @@ async function totalFareCount(profile) {
     if (detail.noRecord) {
       message += `乘客: ${detail.name} 此月份尚無匯款紀錄\n`;
     } else {
-      message += `乘客: ${detail.name} 車資為: ${detail.totalFare}`;
+      message += `乘客: ${detail.name} 匯款車資為: ${detail.totalFare}`;
       if (detail.fareCount > 0) {
-        message += ` 餘${detail.fareCount}`;
+        message += ` 剩餘NT$${detail.fareCount}`;
       } else if (detail.fareCount < 0) {
-        message += ` 欠${Math.abs(detail.fareCount)}`;
+        message += ` 欠費NT$${Math.abs(detail.fareCount)}`;
       }
       message += `\n`;
     }
