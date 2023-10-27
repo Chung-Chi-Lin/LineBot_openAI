@@ -65,7 +65,7 @@ const COMMANDS_MAP = {
 					'確認加減原匯款金額之剩餘費用，例如:未搭車或多搭乘 (輸入範例> 車費查詢)',
 		},
 		綁定司機: {
-			function: bindDriverId,checkDriverReverse
+			function: bindDriverId,
 			remark: '綁定司機後方可計算日後車費 (輸入範例> 綁定司機:司機ID)',
 		},
 		司機預約表: {
