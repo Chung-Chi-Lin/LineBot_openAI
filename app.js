@@ -70,7 +70,7 @@ const COMMANDS_MAP = {
 		},
 		司機預約表: {
 			function: checkDriverReverse,
-			remark: '點選網址連結 Google 預約乘車時間 (輸入範例> 司機預約表)',
+			remark: '點選網址連結 Google 預約乘車時間，請於上方查看司機規定之預約方式 (輸入範例> 司機預約表)',
 		},
 		// 可以根據需求繼續新增功能
 	},
