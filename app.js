@@ -65,8 +65,12 @@ const COMMANDS_MAP = {
 					'確認加減原匯款金額之剩餘費用，例如:未搭車或多搭乘 (輸入範例> 車費查詢)',
 		},
 		綁定司機: {
-			function: bindDriverId,
+			function: bindDriverId,checkDriverReverse
 			remark: '綁定司機後方可計算日後車費 (輸入範例> 綁定司機:司機ID)',
+		},
+		司機預約表: {
+			function: checkDriverReverse,
+			remark: '點選網址連結 Google 預約乘車時間 (輸入範例> 司機預約表)',
 		},
 		// 可以根據需求繼續新增功能
 	},
@@ -88,6 +92,10 @@ const COMMANDS_MAP = {
 		車資收入: {
 			function: totalFareCount,
 			remark: '取得名下所有乘客收取費用加總 (輸入範例> 車資收入)',
+		},
+		預約表查詢: {
+			function: checkDriverReverse,
+			remark: '點選網址連結 Google 查看乘客預約時間 (輸入範例> 預約表查詢)',
 		},
 		// 可以根據需求繼續新增功能
 	},
