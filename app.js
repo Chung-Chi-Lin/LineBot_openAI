@@ -196,16 +196,16 @@ async function handleUserTypeChange(profile, userType) {
 async function checkDriverReverse(profile) {
 	let result = await executeSQL('SELECT * FROM users WHERE line_user_id = ?', [profile.userId]);
 
-	if (result[0].length > 0) {
-		let user = result[0];
+	if (result[0][0].length > 0) {
+		let user = result[0][0];
 
 		if (user.line_user_type === '司機') {
 			return createResponse('text', `司機 ${profile.displayName}，您的預約表網址為 ${user.driver_reserve_link}`);
 		} else if (user.line_user_type === '乘客') {
 			let driverResult = await executeSQL('SELECT * FROM users WHERE line_user_id = ?', [user.line_user_driver]);
 
-			if (driverResult[0].length > 0) {
-				let driver = driverResult[0];
+			if (driverResult[0][0].length > 0) {
+				let driver = driverResult[0][0];
 				return createResponse('text', `乘客 ${profile.displayName}，您的預約表網址為 ${driver.driver_reserve_link}`);
 			} else {
 				return createResponse('text', `乘客 ${profile.displayName}，您的司機並未開放預約`);
