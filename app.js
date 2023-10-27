@@ -195,9 +195,7 @@ async function handleUserTypeChange(profile, userType) {
 // 查詢司機、乘客預約表
 async function checkDriverReverse(profile) {
 	let result = await executeSQL('SELECT * FROM users WHERE line_user_id = ?', [profile.userId]);
-	console.log("測試", result)
-	let driver = await executeSQL('SELECT * FROM users WHERE line_user_id = ?', [user.line_user_driver]);
-	console.log("測試", driver)
+
 	if (result[0].length > 0) {
 		let user = result[0];
 
