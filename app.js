@@ -184,6 +184,32 @@ async function handleUserTypeChange(profile, userType) {
 	);
 }
 
+// 查詢司機、乘客預約表
+async function checkDriverReverse(profile) {
+	let result = await executeSQL('SELECT * FROM users WHERE line_user_id = ?', [profile.userId]);
+	console.log("測試", result)
+	let driver = await executeSQL('SELECT * FROM users WHERE line_user_id = ?', [user.line_user_driver]);
+	console.log("測試", driver)
+	if (result[0].length > 0) {
+		let user = result[0];
+
+		if (user.line_user_type === '司機') {
+			return createResponse('text', `司機 ${profile.displayName}，您的預約表網址為 ${user.driver_reserve_link}`);
+		} else if (user.line_user_type === '乘客') {
+			let driverResult = await executeSQL('SELECT * FROM users WHERE line_user_id = ?', [user.line_user_driver]);
+
+			if (driverResult[0].length > 0) {
+				let driver = driverResult[0];
+				return createResponse('text', `乘客 ${profile.displayName}，您的預約表網址為 ${driver.driver_reserve_link}`);
+			} else {
+				return createResponse('text', `乘客 ${profile.displayName}，您的司機並未開放預約`);
+			}
+		}
+	}
+
+	return createResponse('text', `${user.line_user_type} ${profile.displayName}，查詢不到您的預約資訊`);
+}
+
 // ============= 對應指令功能 =============
 // 乘客-車費匯款的操作
 async function fareTransfer(profile, event) {
@@ -389,17 +415,6 @@ async function passengerFareCount(profile, event) {
 		createResponse('text', `${profile.displayName} ，請輸入正確的用戶 ID。`);
 		return;
 	}
-	// // 從fare表取出對應用戶ID的user_fare並進行計算
-	// const [fareData] = await executeSQL('SELECT user_fare FROM fare WHERE line_user_id = ?', [userId]);
-	// let newFare = 0;
-	//
-	// if (fareData && fareData.length > 0) {
-	// 	newFare = fareData[0].user_fare + fareChange;
-	// } else {
-	// 	createResponse('text', `${profile.displayName} ，目前用戶尚無匯款費用可供計算。`);
-	// 	return;
-	// }
-
 	// 儲存到fare_count表
 	await executeSQL(
 			'INSERT INTO fare_count (line_user_id, user_fare_count, user_remark, update_time) VALUES (?, ?, ?, ?)',
