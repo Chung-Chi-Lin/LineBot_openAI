@@ -195,7 +195,7 @@ function formatDateToChinese(date) {
 // SQL 專用 function
 async function executeSQL(query, params) {
 	try {
-		const [rows, fields] = await pool.execute(query, params);
+		const [rows, fields] = await pool.query(query, params);
 		return [rows, fields];
 	} catch (error) {
 		createResponse('text', '資料異常請聯絡開發人員');
