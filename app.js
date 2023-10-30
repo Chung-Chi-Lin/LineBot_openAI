@@ -38,8 +38,10 @@ pool.connect()
 			console.log('Connected to the database.');
 		})
 		.catch(err => {
-			console.error('Database connection error:', err);
+			console.error('Database connection error:', err.message);
+			console.error('Detailed error:', err);
 		});
+
 // create LINE SDK client
 const client = new line.Client(config);
 
@@ -547,117 +549,117 @@ async function handleEvent(event) {
 		return Promise.resolve(null);
 	}
 
-	const profile = await client.getProfile(event.source.userId); // 用戶資料
-	const validationResult = await validateUser(profile, event); // 初始 ID 驗證
-	let userType = '';
-
-	if (validationResult.type === 'existing_user') {
-		// 此區塊處理已存在的用戶
-		const userLineType = validationResult.user.line_user_type;
-		const inputText = event.message.text.trim(); // 移除前後的空白
-		const command =
-				COMMANDS_MAP[userLineType] && COMMANDS_MAP[userLineType][inputText];
-		const userFunction = command ? command.function : null;
-		const fareTransferMatch = event.message.text.includes('車費匯款'); // 乘客
-		const bindDriverMatch = event.message.text.includes('綁定司機'); // 乘客
-		const FareCountCommandsMatch = event.message.text.match(
-				/^([a-zA-Z0-9]+)\s*:? ?([+-]\d+)\s*備註:? ?(.+)/
-		);
-
-		// 是否為乘客判斷有無綁定司機ID
-		const [userData] = await executeSQL(
-				'SELECT line_user_driver FROM users WHERE line_user_id = ?',
-				[profile.userId]
-		);
-
-		if (
-				!userData[0].line_user_driver &&
-				userLineType === '乘客' &&
-				!bindDriverMatch
-		) {
-			const [result] = await executeSQL(
-					`SELECT line_user_id, line_user_name FROM users WHERE line_user_type = '司機'`
-			);
-			let responseText = '';
-			result.forEach((entry) => {
-				responseText += `\n司機名稱: ${entry.line_user_name} ，複製此ID: ${entry.line_user_id}\n`;
-			});
-			createResponse(
-					'text',
-					`${profile.displayName} 您尚未綁定司機 ID。注意請先完成綁定司機後方可計算日後車費，目前司機名單為:\n${responseText}\n 請輸入以下指令，(輸入範例: 綁定司機:U276d4...)`
-			);
-			// use reply API
-			return client.replyMessage(event.replyToken, echo);
-		}
-		// ==========================================================
-		if (userFunction) {
-			await userFunction(profile, event); // 正確指令執行對應的功能
-		} else if ((fareTransferMatch || bindDriverMatch) && userLineType === '乘客') {
-			if (fareTransferMatch) {
-				await fareTransfer(profile, event); // 車費匯款特別處理
-			}
-			if (bindDriverMatch) {
-				await bindDriverId(profile, event); // 綁定司機 ID 特別處理
-			}
-		} else if (FareCountCommandsMatch && userLineType === '司機') {
-			if (FareCountCommandsMatch) {
-				await passengerFareCount(profile, event); // 車費匯款特別處理
-			}
-		} else {
-			if (userLineType) {
-				if (event.message.text === '指令') {
-					const commandsString = getCommandsAsString(userLineType);
-					createResponse(
-							'text',
-							`${userLineType} ${profile.displayName} 歡迎回來，${commandsString}`
-					);
-				} else {
-					// 組合整體訊息
-					createResponse(
-							'text',
-							`${userLineType} ${profile.displayName} 歡迎回來，請輸入"指令"了解指令用法。`
-					);
-				}
-			} else {
-				createResponse('text', '檢測資料異常，請聯絡開發人員!');
-			}
-		}
-	} else if (validationResult.type === 'create_user') {
-		// 此區塊處理新用戶
-		userType = event.message.text === '我是乘客' ? '乘客' : '司機';
-		await handleUserTypeChange(profile, userType);
-		if (userType === '乘客') {
-			const [result] = await executeSQL(
-					`SELECT line_user_id, line_user_name FROM users WHERE line_user_type = '司機'`
-			);
-			let responseText = '';
-			result.forEach((entry) => {
-				responseText += `${entry.line_user_name} : ${entry.line_user_id}\n`;
-			});
-			createResponse(
-					'text',
-					`${profile.displayName} ，我已經將您切換為 ${userType} ，注意請先完成下一步綁定司機\n${responseText}\n 輸入範例: (綁定司機:此位置複製上方搭乘司機對應的ID碼)`
-			);
-		} else {
-			createResponse(
-					'text',
-					`${profile.displayName} ，我已經將您切換為 ${userType} !`
-			);
-		}
-	} else if (validationResult.type === 'repeat_command') {
-		// 此區塊處理重複指令
-		createResponse('text', '如需切換使用者請聯絡開發人員');
-	} else if (validationResult.type === 'super_user') {
-		// 此區塊處理技術支援
-		createResponse(
-				'text',
-				'嗨! 我是開發者 77 這是我的 LINE ID: 0925955648，如果你真的需要我的幫助，請再聯繫我 !'
-		);
-	} else {
-		// 此區塊處理未依規則指令
-		createResponse('text', '請先依照身分輸入(我是乘客) 或 (我是司機) 加入。');
-	}
-
+	// const profile = await client.getProfile(event.source.userId); // 用戶資料
+	// const validationResult = await validateUser(profile, event); // 初始 ID 驗證
+	// let userType = '';
+	//
+	// if (validationResult.type === 'existing_user') {
+	// 	// 此區塊處理已存在的用戶
+	// 	const userLineType = validationResult.user.line_user_type;
+	// 	const inputText = event.message.text.trim(); // 移除前後的空白
+	// 	const command =
+	// 			COMMANDS_MAP[userLineType] && COMMANDS_MAP[userLineType][inputText];
+	// 	const userFunction = command ? command.function : null;
+	// 	const fareTransferMatch = event.message.text.includes('車費匯款'); // 乘客
+	// 	const bindDriverMatch = event.message.text.includes('綁定司機'); // 乘客
+	// 	const FareCountCommandsMatch = event.message.text.match(
+	// 			/^([a-zA-Z0-9]+)\s*:? ?([+-]\d+)\s*備註:? ?(.+)/
+	// 	);
+	//
+	// 	// 是否為乘客判斷有無綁定司機ID
+	// 	const [userData] = await executeSQL(
+	// 			'SELECT line_user_driver FROM users WHERE line_user_id = ?',
+	// 			[profile.userId]
+	// 	);
+	//
+	// 	if (
+	// 			!userData[0].line_user_driver &&
+	// 			userLineType === '乘客' &&
+	// 			!bindDriverMatch
+	// 	) {
+	// 		const [result] = await executeSQL(
+	// 				`SELECT line_user_id, line_user_name FROM users WHERE line_user_type = '司機'`
+	// 		);
+	// 		let responseText = '';
+	// 		result.forEach((entry) => {
+	// 			responseText += `\n司機名稱: ${entry.line_user_name} ，複製此ID: ${entry.line_user_id}\n`;
+	// 		});
+	// 		createResponse(
+	// 				'text',
+	// 				`${profile.displayName} 您尚未綁定司機 ID。注意請先完成綁定司機後方可計算日後車費，目前司機名單為:\n${responseText}\n 請輸入以下指令，(輸入範例: 綁定司機:U276d4...)`
+	// 		);
+	// 		// use reply API
+	// 		return client.replyMessage(event.replyToken, echo);
+	// 	}
+	// 	// ==========================================================
+	// 	if (userFunction) {
+	// 		await userFunction(profile, event); // 正確指令執行對應的功能
+	// 	} else if ((fareTransferMatch || bindDriverMatch) && userLineType === '乘客') {
+	// 		if (fareTransferMatch) {
+	// 			await fareTransfer(profile, event); // 車費匯款特別處理
+	// 		}
+	// 		if (bindDriverMatch) {
+	// 			await bindDriverId(profile, event); // 綁定司機 ID 特別處理
+	// 		}
+	// 	} else if (FareCountCommandsMatch && userLineType === '司機') {
+	// 		if (FareCountCommandsMatch) {
+	// 			await passengerFareCount(profile, event); // 車費匯款特別處理
+	// 		}
+	// 	} else {
+	// 		if (userLineType) {
+	// 			if (event.message.text === '指令') {
+	// 				const commandsString = getCommandsAsString(userLineType);
+	// 				createResponse(
+	// 						'text',
+	// 						`${userLineType} ${profile.displayName} 歡迎回來，${commandsString}`
+	// 				);
+	// 			} else {
+	// 				// 組合整體訊息
+	// 				createResponse(
+	// 						'text',
+	// 						`${userLineType} ${profile.displayName} 歡迎回來，請輸入"指令"了解指令用法。`
+	// 				);
+	// 			}
+	// 		} else {
+	// 			createResponse('text', '檢測資料異常，請聯絡開發人員!');
+	// 		}
+	// 	}
+	// } else if (validationResult.type === 'create_user') {
+	// 	// 此區塊處理新用戶
+	// 	userType = event.message.text === '我是乘客' ? '乘客' : '司機';
+	// 	await handleUserTypeChange(profile, userType);
+	// 	if (userType === '乘客') {
+	// 		const [result] = await executeSQL(
+	// 				`SELECT line_user_id, line_user_name FROM users WHERE line_user_type = '司機'`
+	// 		);
+	// 		let responseText = '';
+	// 		result.forEach((entry) => {
+	// 			responseText += `${entry.line_user_name} : ${entry.line_user_id}\n`;
+	// 		});
+	// 		createResponse(
+	// 				'text',
+	// 				`${profile.displayName} ，我已經將您切換為 ${userType} ，注意請先完成下一步綁定司機\n${responseText}\n 輸入範例: (綁定司機:此位置複製上方搭乘司機對應的ID碼)`
+	// 		);
+	// 	} else {
+	// 		createResponse(
+	// 				'text',
+	// 				`${profile.displayName} ，我已經將您切換為 ${userType} !`
+	// 		);
+	// 	}
+	// } else if (validationResult.type === 'repeat_command') {
+	// 	// 此區塊處理重複指令
+	// 	createResponse('text', '如需切換使用者請聯絡開發人員');
+	// } else if (validationResult.type === 'super_user') {
+	// 	// 此區塊處理技術支援
+	// 	createResponse(
+	// 			'text',
+	// 			'嗨! 我是開發者 77 這是我的 LINE ID: 0925955648，如果你真的需要我的幫助，請再聯繫我 !'
+	// 	);
+	// } else {
+	// 	// 此區塊處理未依規則指令
+	// 	createResponse('text', '請先依照身分輸入(我是乘客) 或 (我是司機) 加入。');
+	// }
+	createResponse('text', '請先依照身分輸入(我是乘客) 或 (我是司機) 加入。');
 	// use reply API
 	return client.replyMessage(event.replyToken, echo);
 }
