@@ -22,13 +22,24 @@ const config = {
 
 const pool = new sql.ConnectionPool({
 	server: process.env.DB_HOST,
+	port: 1433,
 	user: process.env.DB_USER,
 	password: process.env.DB_PASS,
 	database: process.env.DB_NAME,
 	connectionLimit: 10,
+	connectionTimeout: 30000,
+	options: {
+		encrypt: true, // 使用Azure SQL，這是必需的
+	}
 });
 
-pool.connect();
+pool.connect()
+		.then(() => {
+			console.log('Connected to the database.');
+		})
+		.catch(err => {
+			console.error('Database connection error:', err);
+		});
 // create LINE SDK client
 const client = new line.Client(config);
 
