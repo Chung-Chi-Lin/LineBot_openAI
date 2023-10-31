@@ -595,7 +595,7 @@ async function handleEvent(event) {
 			});
 			createResponse(
 					'text',
-					`${profile.displayName} 您尚未綁定司機 ID。注意請先完成綁定司機後方可計算日後車費，目前司機名單為:\n${responseText}\n 請輸入以下指令，(輸入範例: 綁定司機:U276d4...)`
+					`${profile.displayName} 您尚未綁定司機 ID。注意請先完成綁定司機後方可計算日後車費，目前司機名單為:\n${responseText ? responseText : "目前無司機"}\n 請輸入以下指令，(輸入範例: 綁定司機:U276d4...)`
 			);
 			// use reply API
 			return client.replyMessage(event.replyToken, echo);
@@ -647,7 +647,7 @@ async function handleEvent(event) {
 			});
 			createResponse(
 					'text',
-					`${profile.displayName} ，我已經將您切換為 ${userType} ，注意請先完成下一步綁定司機\n${responseText}\n 輸入範例: (綁定司機:此位置複製上方搭乘司機對應的ID碼)`
+					`${profile.displayName} ，我已經將您切換為 ${userType} ，注意請先完成下一步綁定司機\n${responseText ? responseText : "目前無司機"}\n 輸入範例: (綁定司機:此位置複製上方搭乘司機對應的ID碼)`
 			);
 		} else {
 			createResponse(
