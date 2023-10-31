@@ -10,16 +10,6 @@ const config = {
 	channelSecret: process.env.CHANNEL_SECRET,
 };
 
-// const pool = mysql.createPool({
-// 	host: process.env.DB_HOST,
-// 	user: process.env.DB_USER,
-// 	password: process.env.DB_PASS,
-// 	database: process.env.DB_NAME,
-// 	waitForConnections: true,
-// 	connectionLimit: 10,
-// 	queueLimit: 0,
-// });
-
 const pool = new sql.ConnectionPool({
 	server: process.env.DB_HOST,
 	port: 1433,
@@ -125,9 +115,10 @@ let echo = {}; // Bot 回傳提示字
 async function validateUser(profile, event) {
 	// 是否有 ID 在資料庫
 	const [existingUsers] = await executeSQL(
-			'SELECT * FROM users WHERE line_user_id = ?',
-			[profile.userId]
+			'SELECT * FROM users WHERE line_user_id = @line_user_id',
+			{ line_user_id: profile.userId }
 	);
+	console.log("測試", existingUsers)
 	let type = '';
 	let user = null;
 
@@ -193,8 +184,28 @@ function formatDateToChinese(date) {
 // SQL 專用 function
 async function executeSQL(query, params) {
 	try {
-		const [rows, fields] = await pool.query(query, params);
-		return [rows, fields];
+		const request = pool.request();
+
+		for (const param in params) {
+			const value = params[param];
+			let detectedType;
+
+			if (typeof value === 'string') {
+				detectedType = sql.NVarChar;
+			} else if (typeof value === 'number') {
+				detectedType = sql.Int;
+			} else if (value instanceof Date) {
+				detectedType = sql.DateTime;
+			} else {
+				detectedType = sql.VarBinary; // 假設其他非指定類型都是VarBinary
+			}
+
+			request.input(param, detectedType, value);
+		}
+
+		const result = await request.query(query);
+		return [result.recordset, result.columns];
+
 	} catch (error) {
 		createResponse('text', '資料異常請聯絡開發人員');
 		console.error('SQL Error:', error);
@@ -205,14 +216,14 @@ async function executeSQL(query, params) {
 // 新建用戶
 async function handleUserTypeChange(profile, userType) {
 	await executeSQL(
-			'INSERT INTO users (line_user_id, line_user_name, line_user_type) VALUES (?, ?, ?)',
-			[profile.userId, profile.displayName, userType]
+			'INSERT INTO users (line_user_id, line_user_name, line_user_type) VALUES (@p1, @p2, @p3)',
+			{p1: profile.userId, p2: profile.displayName, p3: userType}
 	);
 }
 
 // 查詢司機、乘客預約表
 async function checkDriverReverse(profile) {
-	const result = await executeSQL('SELECT * FROM users WHERE line_user_id = ?', [profile.userId]);
+	const result = await executeSQL('SELECT * FROM users WHERE line_user_id = @p1', {p1: profile.userId});
 
 	if (result[0].length > 0) {
 		const user = result[0][0];
@@ -220,7 +231,7 @@ async function checkDriverReverse(profile) {
 		if (user.line_user_type === '司機') {
 			return createResponse('text', `司機 ${profile.displayName}，您的預約表網址為 ${user.driver_reserve_link}`);
 		} else if (user.line_user_type === '乘客') {
-			const driverResult = await executeSQL('SELECT * FROM users WHERE line_user_id = ?', [user.line_user_driver]);
+			const driverResult = await executeSQL('SELECT * FROM users WHERE line_user_id = @p1', {p1: user.line_user_driver});
 
 			if (driverResult[0].length > 0) {
 				const driver = driverResult[0][0];
@@ -250,8 +261,8 @@ async function fareTransfer(profile, event) {
 
 	const fareAmount = Number(fareMatch[1]);
 	const result = await executeSQL(
-			'SELECT user_fare, update_time FROM fare WHERE line_user_id = ? AND update_time = (SELECT update_time FROM fare WHERE line_user_id = ? ORDER BY ABS(DATEDIFF(update_time, CURDATE())) ASC LIMIT 1)',
-			[profile.userId, profile.userId]
+			'SELECT user_fare, update_time FROM fare WHERE line_user_id = @p1 AND update_time = (SELECT TOP 1 update_time FROM fare WHERE line_user_id = @p2 ORDER BY ABS(DATEDIFF(DAY, update_time, GETDATE())))',
+			{p1: profile.userId, p2: profile.userId}
 	);
 
 	const fareData = result[0] && result[0][0];
@@ -272,8 +283,8 @@ async function fareTransfer(profile, event) {
 	}
 
 	await executeSQL(
-			'INSERT INTO fare (line_user_id, user_fare, update_time) VALUES (?, ?, ?)',
-			[profile.userId, fareAmount, formatDate(currentDate)]
+			'INSERT INTO fare (line_user_id, user_fare, update_time) VALUES (@p1, @p2, @p3)',
+			{p1: profile.userId, p2: fareAmount, p3: formatDate(currentDate)}
 	);
 
 	return createResponse(
@@ -285,13 +296,14 @@ async function fareTransfer(profile, event) {
 // 乘客-車費查詢的操作
 async function fareSearch(profile) {
 	const [userFare] = await executeSQL(
-			'SELECT user_fare, update_time FROM fare WHERE line_user_id = ? ORDER BY ABS(DATEDIFF(update_time, CURDATE())) ASC LIMIT 1',
-			[profile.userId]
+			'SELECT TOP 1 user_fare, update_time FROM fare WHERE line_user_id = @p1 ORDER BY ABS(DATEDIFF(DAY, update_time, GETDATE()))',
+			{p1: profile.userId}
 	);
 	const fareDetails = await executeSQL(
-			'SELECT user_fare_count, user_remark, update_time FROM fare_count WHERE line_user_id = ? AND MONTH(update_time) = MONTH(CURDATE()) AND YEAR(update_time) = YEAR(CURDATE()) ORDER BY update_time ASC', // 修改了這裡的排序
-			[profile.userId]
+			'SELECT user_fare_count, user_remark, update_time FROM fare_count WHERE line_user_id = @p1 AND MONTH(update_time) = MONTH(GETDATE()) AND YEAR(update_time) = YEAR(GETDATE()) ORDER BY update_time ASC',
+			{p1: profile.userId}
 	);
+
 	const fare = userFare[0].user_fare;
 
 	if (userFare.length === 0) {
@@ -330,9 +342,9 @@ async function bindDriverId(profile, event) {
 
 		// 2. 檢查此ID是否存在於 users 表，且該用戶為司機
 		const [driverData] = await executeSQL(
-				'SELECT line_user_id FROM users WHERE line_user_id = ? AND line_user_type = "司機"',
-				[driverId]
-		);
+				`SELECT line_user_id FROM users WHERE line_user_id = @p1 AND line_user_type = N'司機'`,
+				{p1: driverId}
+	);
 
 		if (driverData.length === 0) {
 			createResponse(
@@ -342,8 +354,8 @@ async function bindDriverId(profile, event) {
 		} else {
 			// 3. 更新使用者的 line_user_driver 欄位
 			await executeSQL(
-					'UPDATE users SET line_user_driver = ? WHERE line_user_id = ?',
-					[driverId, profile.userId]
+					'UPDATE users SET line_user_driver = @p1 WHERE line_user_id = @p2',
+					{p1: driverId, p2: profile.userId}
 			);
 			createResponse('text', `${profile.displayName} ，您已成功綁定司機ID。`);
 		}
@@ -359,11 +371,11 @@ async function bindDriverId(profile, event) {
 async function fareIncome(profile) {
 	// 1. 執行SQL查詢來獲取特定司機的所有乘客的車費紀錄
 	const [result] = await executeSQL(
-			`SELECT u.line_user_name, f.user_fare, DATE_FORMAT(f.update_time, '%Y-%m-%d') AS formatted_date
+			`SELECT u.line_user_name, f.user_fare, FORMAT(f.update_time, 'yyyy-MM-dd') AS formatted_date
         FROM fare AS f
         JOIN users AS u ON f.line_user_id = u.line_user_id
-        WHERE u.line_user_driver = ?`,
-			[profile.userId]
+        WHERE u.line_user_driver = @p1`,
+			{p1: profile.userId}
 	);
 
 	// 2. 檢查查詢結果
@@ -382,8 +394,8 @@ async function fareIncome(profile) {
 async function passengerInfo(profile) {
 	// 1. 執行SQL查詢來獲取所有乘客的資訊
 	const [result] = await executeSQL(
-			`SELECT line_user_id, line_user_name FROM users WHERE line_user_type = '乘客' AND line_user_driver = ?`,
-			[profile.userId]
+			`SELECT line_user_id, line_user_name FROM users WHERE line_user_type = N'乘客' AND line_user_driver = @p1`,
+			{p1: profile.userId}
 	);
 
 	// 2. 檢查查詢結果
@@ -419,9 +431,10 @@ async function passengerFareCount(profile, event) {
 
 	// 查詢line_user_driver是否符合profile.userID
 	const driverData = await executeSQL(
-			'SELECT * FROM users WHERE line_user_driver = ?',
-			[profile.userId]
+			'SELECT * FROM users WHERE line_user_driver = @p1',
+			{p1: profile.userId}
 	);
+
 	if (!driverData || driverData.length === 0) {
 		createResponse('text', `${profile.displayName} ，無效的司機ID。`);
 		return;
@@ -441,8 +454,8 @@ async function passengerFareCount(profile, event) {
 	}
 	// 儲存到fare_count表
 	await executeSQL(
-			'INSERT INTO fare_count (line_user_id, user_fare_count, user_remark, update_time) VALUES (?, ?, ?, ?)',
-			[userId, fareChange, remark, formatDate(currentDate)]
+			'INSERT INTO fare_count (line_user_id, user_fare_count, user_remark, update_time) VALUES (@p1, @p2, @p3, @p4)',
+			{p1: userId, p2: fareChange, p3: remark, p4: formatDate(currentDate)}
 	);
 
 	createResponse(
@@ -457,8 +470,8 @@ async function passengerFareCount(profile, event) {
 async function totalFareCount(profile) {
 	// 1. 從 users 表找到 line_user_driver 所有符合 profile.userId 的資料
 	const passengers = await executeSQL(
-			'SELECT line_user_id, line_user_name FROM users WHERE line_user_driver = ?',
-			[profile.userId]
+			'SELECT line_user_id, line_user_name FROM users WHERE line_user_driver = @p1',
+			{p1: profile.userId}
 	);
 
 	// 檢查是否有資料
@@ -478,8 +491,8 @@ async function totalFareCount(profile) {
 	for (const passenger of passengers[0]) {
 		// 2. 根據 line_user_id 去 fare 表格中找對應當月的資料
 		const fares = await executeSQL(
-				'SELECT user_fare, update_time FROM fare WHERE line_user_id = ? AND MONTH(update_time) = MONTH(CURDATE()) AND YEAR(update_time) = YEAR(CURDATE())',
-				[passenger.line_user_id]
+				'SELECT user_fare, update_time FROM fare WHERE line_user_id = @p1 AND MONTH(update_time) = MONTH(GETDATE()) AND YEAR(update_time) = YEAR(GETDATE())',
+				{p1: passenger.line_user_id}
 		);
 
 		let fareAmount = 0; // 乘客的車費
@@ -493,8 +506,8 @@ async function totalFareCount(profile) {
 		console.log("測試1", fares[0][0].user_fare)
 		// 3. 根據 line_user_id 去 fare_count 表格中找對應的資料
 		const fareCounts = await executeSQL(
-				'SELECT user_fare_count FROM fare_count WHERE line_user_id = ? AND MONTH(update_time) = MONTH(CURDATE()) AND YEAR(update_time) = YEAR(CURDATE())',
-				[passenger.line_user_id]
+				'SELECT user_fare_count FROM fare_count WHERE line_user_id = @p1 AND MONTH(update_time) = MONTH(GETDATE()) AND YEAR(update_time) = YEAR(GETDATE())',
+				{p1: passenger.line_user_id}
 		);
 
 		let fareCountAmount = 0; // 乘客的 fare_count 總和
@@ -564,8 +577,8 @@ async function handleEvent(event) {
 
 		// 是否為乘客判斷有無綁定司機ID
 		const [userData] = await executeSQL(
-				'SELECT line_user_driver FROM users WHERE line_user_id = ?',
-				[profile.userId]
+				'SELECT line_user_driver FROM users WHERE line_user_id = @p1',
+				{p1: profile.userId}
 		);
 
 		if (
@@ -574,7 +587,7 @@ async function handleEvent(event) {
 				!bindDriverMatch
 		) {
 			const [result] = await executeSQL(
-					`SELECT line_user_id, line_user_name FROM users WHERE line_user_type = '司機'`
+					`SELECT line_user_id, line_user_name FROM users WHERE line_user_type = N'司機'`
 			);
 			let responseText = '';
 			result.forEach((entry) => {
@@ -626,7 +639,7 @@ async function handleEvent(event) {
 		await handleUserTypeChange(profile, userType);
 		if (userType === '乘客') {
 			const [result] = await executeSQL(
-					`SELECT line_user_id, line_user_name FROM users WHERE line_user_type = '司機'`
+					`SELECT line_user_id, line_user_name FROM users WHERE line_user_type = N'司機'`
 			);
 			let responseText = '';
 			result.forEach((entry) => {
