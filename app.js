@@ -26,8 +26,6 @@ const pool = new sql.ConnectionPool({
 	user: process.env.DB_USER,
 	password: process.env.DB_PASS,
 	database: process.env.DB_NAME,
-	connectionLimit: 10,
-	connectionTimeout: 30000,
 	options: {
 		encrypt: true, // 使用Azure SQL，這是必需的
 	}
@@ -494,7 +492,6 @@ async function totalFareCount(profile) {
 			totalIncome += fareAmount;
 		}
 
-		console.log("測試1", fares[0][0].user_fare)
 		// 3. 根據 line_user_id 去 fare_count 表格中找對應的資料
 		const fareCounts = await executeSQL(
 				'SELECT user_fare_count FROM fare_count WHERE line_user_id = ? AND MONTH(update_time) = MONTH(CURDATE()) AND YEAR(update_time) = YEAR(CURDATE())',
@@ -554,8 +551,7 @@ async function handleEvent(event) {
 			'text',
 			`${profile}`
 	);
-	const validationResult = await validateUser(profile, event); // 初始 ID 驗證
-	console.log(validationResult)
+
 	// let userType = '';
 	//
 	// if (validationResult.type === 'existing_user') {
