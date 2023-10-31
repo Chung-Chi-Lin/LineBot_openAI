@@ -73,7 +73,10 @@ async function executeSQL(query, params) {
 		throw error;
 	}
 }
-
+// 共用-回傳訊息格式
+function createResponse(type, message) {
+	echo = {type: type, text: message};
+}
 // 新建用戶
 async function handleUserTypeChange(profile, userType) {
 	await executeSQL(
