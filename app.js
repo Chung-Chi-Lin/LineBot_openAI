@@ -308,30 +308,35 @@ async function fareSearch(profile) {
 		createResponse('text', `${profile.displayName}，您尚未有車費紀錄。`);
 		return;
 	}
-	console.log("測試", userFare);
+
 	const fare = userFare[0].user_fare;
+	const updateTime = new Date(userFare[0].update_time);
+	const formattedDate = formatDateToChinese(updateTime);
 
 	if (fareDetails[0].length === 0) {
-		const updateTime = new Date(userFare[0].update_time);
-		const formattedDate = formatDateToChinese(updateTime);
 		createResponse(
 				'text',
 				`${profile.displayName} ，您最近的車費及時間為 NT$${fare} ${formattedDate}。`
 		);
 	} else {
-		let message = `${profile.displayName}，您本月的車費細項如下:\n`;
-		let totalFare = fare; // 原始車費
+		let total = 0;
+		let message = `${profile.displayName}，您目前的車費細項如下:\n上次匯款車費及時間: NT$${fare} ${formattedDate}\n`;
 
 		for (const fareDetail of fareDetails[0]) {
 			const date = formatDateToChinese(new Date(fareDetail.update_time));
-			totalFare += fareDetail.user_fare_count;
-			message += `\n> ${date} 原車費NT$${totalFare - fareDetail.user_fare_count}${
-					fareDetail.user_fare_count >= 0 ? '+' : ''
-			}${fareDetail.user_fare_count} = 剩餘NT$${totalFare} ， 原因為: ${
-					fareDetail.user_remark || '無'
-			}\n`; // 進一步調整了這裡的格式
+			total += fareDetail.user_fare_count;
+			message += `\n> 紀錄時間${date} ${fareDetail.user_fare_count >= 0 ? '+' : ''}${fareDetail.user_fare_count} ， 原因為: ${fareDetail.user_remark || '無'}\n`;
 		}
-
+		message += `\n 計算後下月${total <= 0 ? '扣除' : '需補'} ${Math.abs(total)}`;
+		// for (const fareDetail of fareDetails[0]) {
+		// 	const date = formatDateToChinese(new Date(fareDetail.update_time));
+		// 	totalFare += fareDetail.user_fare_count;
+		// 	message += `\n> ${date} 原車費NT$${totalFare - fareDetail.user_fare_count}${
+		// 			fareDetail.user_fare_count >= 0 ? '+' : ''
+		// 	}${fareDetail.user_fare_count} = 剩餘NT$${totalFare} ， 原因為: ${
+		// 			fareDetail.user_remark || '無'
+		// 	}\n`; // 進一步調整了這裡的格式
+		// }
 		createResponse('text', message);
 	}
 }
@@ -540,9 +545,9 @@ async function totalFareCount(profile) {
 		} else {
 			message += `乘客: ${detail.name}，匯款車資為: ${detail.totalFare}`;
 			if (detail.fareCount > 0) {
-				message += `，剩餘NT$${detail.fareCount}`;
+				message += `，下月需多收NT$${detail.fareCount}`;
 			} else if (detail.fareCount < 0) {
-				message += `，欠費NT$${Math.abs(detail.fareCount)}`;
+				message += `，下月車資扣除NT$${Math.abs(detail.fareCount)}`;
 			}
 			message += `\n`;
 		}
