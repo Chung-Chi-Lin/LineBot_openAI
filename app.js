@@ -118,7 +118,7 @@ async function validateUser(profile, event) {
 			'SELECT * FROM users WHERE line_user_id = @line_user_id',
 			{ line_user_id: profile.userId }
 	);
-	console.log("測試", existingUsers)
+
 	let type = '';
 	let user = null;
 
@@ -229,13 +229,13 @@ async function checkDriverReverse(profile) {
 		const user = result[0][0];
 
 		if (user.line_user_type === '司機') {
-			return createResponse('text', `司機 ${profile.displayName}，您的預約表網址為 ${user.driver_reserve_link}`);
+			return createResponse('text', `司機 ${profile.displayName}，您的預約表網址為 ${user.driver_reserve_link ? user.driver_reserve_link : '您尚無預約表'}`);
 		} else if (user.line_user_type === '乘客') {
 			const driverResult = await executeSQL('SELECT * FROM users WHERE line_user_id = @p1', {p1: user.line_user_driver});
 
 			if (driverResult[0].length > 0) {
 				const driver = driverResult[0][0];
-				return createResponse('text', `乘客 ${profile.displayName}，您的預約表網址為 ${driver.driver_reserve_link}`);
+				return createResponse('text', `乘客 ${profile.displayName}，您的預約表網址為 ${driver.driver_reserve_link ? driver.driver_reserve_link : '您的司機尚無預約表'}`);
 			} else {
 				return createResponse('text', `乘客 ${profile.displayName}，您的司機並未開放預約`);
 			}
@@ -304,11 +304,14 @@ async function fareSearch(profile) {
 			{p1: profile.userId}
 	);
 
-	const fare = userFare[0].user_fare;
-
 	if (userFare.length === 0) {
 		createResponse('text', `${profile.displayName}，您尚未有車費紀錄。`);
-	} else if (fareDetails[0].length === 0) {
+		return;
+	}
+	console.log("測試", userFare);
+	const fare = userFare[0].user_fare;
+
+	if (fareDetails[0].length === 0) {
 		const updateTime = new Date(userFare[0].update_time);
 		const formattedDate = formatDateToChinese(updateTime);
 		createResponse(
@@ -503,7 +506,6 @@ async function totalFareCount(profile) {
 			totalIncome += fareAmount;
 		}
 
-		console.log("測試1", fares[0][0].user_fare)
 		// 3. 根據 line_user_id 去 fare_count 表格中找對應的資料
 		const fareCounts = await executeSQL(
 				'SELECT user_fare_count FROM fare_count WHERE line_user_id = @p1 AND MONTH(update_time) = MONTH(GETDATE()) AND YEAR(update_time) = YEAR(GETDATE())',
@@ -591,11 +593,11 @@ async function handleEvent(event) {
 			);
 			let responseText = '';
 			result.forEach((entry) => {
-				responseText += `\n司機名稱: ${entry.line_user_name} ，複製此ID: ${entry.line_user_id}\n`;
+				responseText += `\n司機名稱: ${entry.line_user_name}>複製此ID: ${entry.line_user_id}。\n`;
 			});
 			createResponse(
 					'text',
-					`${profile.displayName} 您尚未綁定司機 ID。注意請先完成綁定司機後方可計算日後車費，目前司機名單為:\n${responseText ? responseText : "目前無司機"}\n 請輸入以下指令，(輸入範例: 綁定司機:U276d4...)`
+					`${profile.displayName} 您尚未綁定司機 ID。注意請先完成綁定司機後方可計算日後車費，目前司機名單為:\n${responseText ? responseText : "*目前無司機*"}\n 請輸入以下指令，(輸入範例: 綁定司機:U276d4...)`
 			);
 			// use reply API
 			return client.replyMessage(event.replyToken, echo);
@@ -647,7 +649,7 @@ async function handleEvent(event) {
 			});
 			createResponse(
 					'text',
-					`${profile.displayName} ，我已經將您切換為 ${userType} ，注意請先完成下一步綁定司機\n${responseText ? responseText : "目前無司機"}\n 輸入範例: (綁定司機:此位置複製上方搭乘司機對應的ID碼)`
+					`${profile.displayName} ，我已經將您切換為 ${userType} ，注意請先完成下一步綁定司機\n${responseText ? responseText : "*目前無司機*"}\n 輸入範例: (綁定司機:此位置複製上方搭乘司機對應的ID碼)`
 			);
 		} else {
 			createResponse(
