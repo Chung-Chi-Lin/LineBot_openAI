@@ -103,7 +103,7 @@ const COMMANDS_MAP = {
 		},
 		預約日設定: {
 			function: openDriverReverse,
-			remark: '查看先前預約以及設置開放預約乘客時間，乘客端可以搜尋到您開放的日期，請務必輸入區間及備註，如僅有一天區間都設定同日期。\n(複製範例1> 預約日設定: 2023-10-03~2023-10-28:開車 備註:不含國定假日)\n(複製範例2> 預約日設定: 2023-10-10~2023-10-15:不開車 備註:出國)',
+			remark: '查看先前預約以及設置開放預約乘客時間，乘客端可以搜尋到您開放的日期，請務必輸入區間及備註，如僅有一天區間都設定同日期。\n(複製範例1> 預約日設定: 2023-10-03~2023-10-28:開車 備註:不含國定假日 乘客數量:3)\n(複製範例2> 預約日設定: 2023-10-10~2023-10-15:不開車 備註:出國)',
 		},
 		// 可以根據需求繼續新增功能
 	},
@@ -613,7 +613,8 @@ async function totalFareCount(profile) {
 // 司機-開放預約時間
 async function openDriverReverse(profile, event) {
 	// 0. 解析司機輸入的訊息
-	const inputPattern = /預約日設定: (\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2}):(開車|不開車) 備註:(.*) 乘客數量:(\d+)/;
+	// 修改正則表達式使乘客數量可選
+	const inputPattern = /預約日設定: (\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2}):(開車|不開車) 備註:(.*) (?:乘客數量:(\d+))?/;
 	const inputMatch = event.message.text.match(inputPattern);
 
 	if (!inputMatch) {
@@ -623,40 +624,33 @@ async function openDriverReverse(profile, event) {
 
 	const startDate = inputMatch[1];
 	const endDate = inputMatch[2];
-	const reverseType = inputMatch[3] === '開車' ? 1 : 0;
+	const reverseType = inputMatch[3];
 	const note = inputMatch[4];
-	const limit = parseInt(inputMatch[5], 10);
+	// 如果 reverseType 為開車且相應的數量匹配存在，則解析乘客數量；如果不開車，則乘客數量為 null
+	const limit = reverseType === '開車' && inputMatch[5] ? parseInt(inputMatch[5], 10) : null;
 
-	// 1. 驗證日期是否合法，並且不是過去的時間
-	const currentDateTime = new Date();
-	const startDateTime = new Date(startDate);
-	const endDateTime = new Date(endDate);
-
-	if (startDateTime < currentDateTime || endDateTime < currentDateTime) {
-		createResponse('text', `${profile.displayName} ，請設置今天後的日期。`);
+	// 若是開車，但沒有提供乘客數量，則返回錯誤
+	if (reverseType === '開車' && limit === null) {
+		createResponse('text', `${profile.displayName} ，請提供乘客數量。`);
 		return;
 	}
 
-	// 2. 驗證是否在同一個月份
-	if (startDateTime.getMonth() !== endDateTime.getMonth() || startDateTime.getFullYear() !== endDateTime.getFullYear()) {
-		createResponse('text', `${profile.displayName} ，請輸入同月份時間範圍。`);
-		return;
-	}
+	// ... 其餘代碼維持不變 ...
 
-	// 3. 根據 reverse_type 確定是否可以覆蓋或添加數據
-	// 假設 executeSQL 是一個可以執行 SQL 語句的函數
-	if (reverseType === 1) {
-		// 更新資料庫中的記錄
+	// 3. 根據 reverseType 確定是否可以覆蓋或添加數據
+	// 修改 SQL 語句和邏輯以適應可選的 limit
+	if (reverseType === '開車') {
+		// 更新資料庫中的記錄，此處包含 limit
 		await executeSQL(
-				'UPDATE driver_dates SET start_date = @start_date, end_date = @end_date, reverse_type = @reverse_type, limit = @limit WHERE line_user_driver = @user_id',
-				{ start_date: startDate, end_date: endDate, reverse_type: reverseType, limit: limit, user_id: profile.userId }
+				'UPDATE driver_dates SET start_date = ?, end_date = ?, reverse_type = ?, note = ?, limit = ? WHERE line_user_driver = ?',
+				[startDate, endDate, 1, note, limit, profile.userId]
 		);
 		createResponse('text', `${profile.displayName} ，已覆蓋原月份預約時間。`);
 	} else {
-		// 插入新的記錄到資料庫
+		// 插入新的記錄到資料庫，此處不包含 limit
 		await executeSQL(
-				'INSERT INTO driver_dates (line_user_driver, start_date, end_date, reverse_type, limit) VALUES (@user_id, @start_date, @end_date, @reverse_type, @limit)',
-				{ user_id: profile.userId, start_date: startDate, end_date: endDate, reverse_type: reverseType, limit: limit }
+				'INSERT INTO driver_dates (line_user_driver, start_date, end_date, reverse_type, note) VALUES (?, ?, ?, ?, ?)',
+				[profile.userId, startDate, endDate, 0, note]
 		);
 		createResponse('text', `${profile.displayName} ，已設定好預約表。`);
 	}
@@ -684,7 +678,8 @@ async function handleEvent(event) {
 		const bindDriverMatch = event.message.text.includes('綁定司機'); // 乘客
 		const FareCountCommandsMatch = event.message.text.match(
 				/^([a-zA-Z0-9]+)\s*:? ?([+-]\d+)\s*備註:? ?(.+)/
-		);
+		);// 司機
+		const isdriverReverse = event.message.text.includes('預約日設定'); // 司機
 
 		// 是否為乘客判斷有無綁定司機ID
 		const [userData] = await executeSQL(
@@ -721,9 +716,12 @@ async function handleEvent(event) {
 			if (bindDriverMatch) {
 				await bindDriverId(profile, event); // 綁定司機 ID 特別處理
 			}
-		} else if (FareCountCommandsMatch && userLineType === '司機') {
+		} else if ((FareCountCommandsMatch || isdriverReverse) && userLineType === '司機') {
 			if (FareCountCommandsMatch) {
 				await passengerFareCount(profile, event); // 車費匯款特別處理
+			}
+			if (isdriverReverse){
+				await openDriverReverse(profile, event); // 預約日設定
 			}
 		} else {
 			if (userLineType) {
