@@ -31,7 +31,7 @@ pool.connect()
 // create LINE SDK client
 const client = new line.Client(config);
 
-// ============= create Express app =============
+// ==================================================== create Express app ====================================================
 // about Express itself: https://expressjs.com/
 const app = express();
 
@@ -49,7 +49,7 @@ app.post('/callback', line.middleware(config), (req, res) => {
 				// 回應 LINE 用戶一個錯誤訊息
 				const errorMessage = {
 					type: 'text',
-					text: '資料處理中，請稍後重試',
+					text: '資料處理重啟中，請稍等2分鐘後重試',
 				};
 				return client
 						.replyMessage(req.body.events[0].replyToken, errorMessage)
@@ -59,7 +59,7 @@ app.post('/callback', line.middleware(config), (req, res) => {
 			});
 });
 
-// =========================== 主要事件處理處 ===========================
+// ==================================================== 主要事件處理處 ====================================================
 // ============= data =============
 const COMMANDS_MAP = {
 	乘客: {
@@ -77,7 +77,7 @@ const COMMANDS_MAP = {
 			remark: '綁定司機後方可計算日後車費 (輸入範例> 綁定司機:司機ID)',
 		},
 		司機預約表: {
-			function: checkDriverReverse,
+			function: pickDriverReverse,
 			remark: '點選網址連結 Google 預約乘車時間，請於上方查看司機規定之預約方式 (輸入範例> 司機預約表)',
 		},
 		// 可以根據需求繼續新增功能
@@ -95,22 +95,22 @@ const COMMANDS_MAP = {
 		乘客車資計算: {
 			function: passengerFareCount,
 			remark:
-					'先輸入乘客資訊後取得目前乘客名稱與更改資訊ID，複製對應ID為乘客加減車資紀錄。複製範例修改>\n Ue3fb7c1:+100 備註:Josh多搭車\nPS:備註限30字內，建議加入乘客名，增加辨識',
+					'先輸入乘客資訊後取得目前乘客名稱與更改資訊ID，複製對應ID為乘客加減車資紀錄。\n複製範例修改>\n Ue3fb7c1:+100 備註:Josh多搭車\nPS:備註限30字內，建議加入乘客名，增加辨識',
 		},
 		車資收入: {
 			function: totalFareCount,
 			remark: '取得名下所有乘客收取費用加總 (輸入範例> 車資收入)',
 		},
-		預約表查詢: {
-			function: checkDriverReverse,
-			remark: '點選網址連結 Google 查看乘客預約時間 (輸入範例> 預約表查詢)',
+		預約日設定: {
+			function: openDriverReverse,
+			remark: '查看先前預約以及設置開放預約乘客時間，乘客端可以搜尋到您開放的日期，請務必輸入區間及備註，如僅有一天區間都設定同日期。\n(複製範例1> 預約日設定: 2023-10-03~2023-10-28:開車 備註:不含國定假日)\n(複製範例2> 預約日設定: 2023-10-10~2023-10-15:不開車 備註:出國)',
 		},
 		// 可以根據需求繼續新增功能
 	},
 };
 let echo = {}; // Bot 回傳提示字
 
-// ============= 共用函式 =============
+// ==================================================== 共用函式 ====================================================
 // 驗證用戶是否存在於資料庫
 async function validateUser(profile, event) {
 	// 是否有 ID 在資料庫
@@ -180,7 +180,7 @@ function formatDateToChinese(date) {
 	return `${year}年${month}月${day}日`;
 }
 
-// ============= SQL函式處 =============
+// ==================================================== SQL函式處 ====================================================
 // SQL 專用 function
 async function executeSQL(query, params) {
 	try {
@@ -221,31 +221,8 @@ async function handleUserTypeChange(profile, userType) {
 	);
 }
 
-// 查詢司機、乘客預約表
-async function checkDriverReverse(profile) {
-	const result = await executeSQL('SELECT * FROM users WHERE line_user_id = @p1', {p1: profile.userId});
-
-	if (result[0].length > 0) {
-		const user = result[0][0];
-
-		if (user.line_user_type === '司機') {
-			return createResponse('text', `司機 ${profile.displayName}，您的預約表網址為 ${user.driver_reserve_link ? user.driver_reserve_link : '您尚無預約表'}`);
-		} else if (user.line_user_type === '乘客') {
-			const driverResult = await executeSQL('SELECT * FROM users WHERE line_user_id = @p1', {p1: user.line_user_driver});
-
-			if (driverResult[0].length > 0) {
-				const driver = driverResult[0][0];
-				return createResponse('text', `乘客 ${profile.displayName}，您的預約表網址為 ${driver.driver_reserve_link ? driver.driver_reserve_link : '您的司機尚無預約表'}`);
-			} else {
-				return createResponse('text', `乘客 ${profile.displayName}，您的司機並未開放預約`);
-			}
-		}
-	}
-
-	return createResponse('text', `${profile.displayName}，查詢不到您的預約資訊`);
-}
-
-// ============= 對應指令功能 =============
+// ==================================================== 對應指令功能 ====================================================
+// ============= 乘客對應函式 =============
 // 乘客-車費匯款的操作
 async function fareTransfer(profile, event) {
 	const fareMatch = event.message.text.match(
@@ -328,15 +305,6 @@ async function fareSearch(profile) {
 			message += `\n> 紀錄時間${date} ${fareDetail.user_fare_count >= 0 ? '+' : ''}${fareDetail.user_fare_count} ， 原因為: ${fareDetail.user_remark || '無'}\n`;
 		}
 		message += `\n 計算後下月${total <= 0 ? '扣除' : '需補'} ${Math.abs(total)}`;
-		// for (const fareDetail of fareDetails[0]) {
-		// 	const date = formatDateToChinese(new Date(fareDetail.update_time));
-		// 	totalFare += fareDetail.user_fare_count;
-		// 	message += `\n> ${date} 原車費NT$${totalFare - fareDetail.user_fare_count}${
-		// 			fareDetail.user_fare_count >= 0 ? '+' : ''
-		// 	}${fareDetail.user_fare_count} = 剩餘NT$${totalFare} ， 原因為: ${
-		// 			fareDetail.user_remark || '無'
-		// 	}\n`; // 進一步調整了這裡的格式
-		// }
 		createResponse('text', message);
 	}
 }
@@ -375,6 +343,90 @@ async function bindDriverId(profile, event) {
 	}
 }
 
+// 乘客-預約司機乘車的操作
+async function pickDriverReverse(profile) {
+	// 1. 從 users 表找到 line_user_driver 所有符合 profile.userId 的資料
+	const passengers = await executeSQL(
+			'SELECT line_user_id, line_user_name FROM users WHERE line_user_driver = @p1',
+			{p1: profile.userId}
+	);
+
+	// 檢查是否有資料
+	if (passengers[0].length === 0) {
+		createResponse(
+				'text',
+				`${profile.displayName} ，目前名下無其他乘客。`
+		);
+		return;
+	}
+
+	// 存儲每個乘客的車費細節
+	const passengerDetails = [];
+
+	let totalIncome = 0; // 總共收入
+
+	for (const passenger of passengers[0]) {
+		// 2. 根據 line_user_id 去 fare 表格中找對應當月的資料
+		const fares = await executeSQL(
+				'SELECT user_fare, update_time FROM fare WHERE line_user_id = @p1 AND MONTH(update_time) = MONTH(GETDATE()) AND YEAR(update_time) = YEAR(GETDATE())',
+				{p1: passenger.line_user_id}
+		);
+
+		let fareAmount = 0; // 乘客的車費
+
+		// 檢查是否有資料
+		if (fares[0].length > 0) {
+			fareAmount = fares[0][0].user_fare;
+			totalIncome += fareAmount;
+		}
+
+		// 3. 根據 line_user_id 去 fare_count 表格中找對應的資料
+		const fareCounts = await executeSQL(
+				'SELECT user_fare_count FROM fare_count WHERE line_user_id = @p1 AND MONTH(update_time) = MONTH(GETDATE()) AND YEAR(update_time) = YEAR(GETDATE())',
+				{p1: passenger.line_user_id}
+		);
+
+		let fareCountAmount = 0; // 乘客的 fare_count 總和
+		for (const fareCount of fareCounts[0]) {
+			fareCountAmount += fareCount.user_fare_count;
+		}
+
+		if (fares.length === 0 && fareCounts.length === 0) {
+			passengerDetails.push({
+				name: passenger.line_user_name,
+				noRecord: true
+			});
+		} else {
+			passengerDetails.push({
+				name: passenger.line_user_name,
+				totalFare: fareAmount,
+				fareCount: fareCountAmount
+			});
+		}
+	}
+
+	// 根據乘客的車費細節生成回應消息
+	let message = `10月份車資\n\n`;
+
+	for (const detail of passengerDetails) {
+		if (detail.noRecord) {
+			message += `乘客: ${detail.name}，此月份尚無匯款紀錄\n`;
+		} else {
+			message += `乘客: ${detail.name}，匯款車資為: ${detail.totalFare}`;
+			if (detail.fareCount > 0) {
+				message += `，下月需多收NT$${detail.fareCount}`;
+			} else if (detail.fareCount < 0) {
+				message += `，下月車資扣除NT$${Math.abs(detail.fareCount)}`;
+			}
+			message += `\n`;
+		}
+	}
+
+	message += `<總共收入: NT$${totalIncome}>`;
+
+	createResponse('text', message);
+}
+// ============= 司機對應函式 =============
 // 司機-顯示司機的乘客車費計算表
 async function fareIncome(profile) {
 	// 1. 執行SQL查詢來獲取特定司機的所有乘客的車費紀錄
@@ -392,7 +444,7 @@ async function fareIncome(profile) {
 	} else {
 		let responseText = '目前的車費計算表為：\n';
 		result.forEach((entry) => {
-			responseText += `${entry.line_user_name} : NT$${entry.user_fare}，匯款時間為 ${entry.formatted_date}\n`;
+			responseText += `\n${entry.line_user_name} : NT$${entry.user_fare}，匯款時間為 ${entry.formatted_date}\n`;
 		});
 		createResponse('text', responseText);
 	}
@@ -412,7 +464,7 @@ async function passengerInfo(profile) {
 	} else {
 		let responseText = '目前的乘客資訊為(請複製對應 ID 將乘客綁定)：\n';
 		result.forEach((entry) => {
-			responseText += `${entry.line_user_name} : ${entry.line_user_id}\n`;
+			responseText += `\n${entry.line_user_name} : ${entry.line_user_id}\n`;
 		});
 		createResponse('text', responseText);
 	}
@@ -558,7 +610,59 @@ async function totalFareCount(profile) {
 	createResponse('text', message);
 }
 
-// 主要處理指令函式
+// 司機-開放預約時間
+async function openDriverReverse(profile, event) {
+	// 0. 解析司機輸入的訊息
+	const inputPattern = /預約日設定: (\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2}):(開車|不開車) 備註:(.*) 乘客數量:(\d+)/;
+	const inputMatch = event.message.text.match(inputPattern);
+
+	if (!inputMatch) {
+		createResponse('text', `${profile.displayName} ，輸入格式不正確。`);
+		return;
+	}
+
+	const startDate = inputMatch[1];
+	const endDate = inputMatch[2];
+	const reverseType = inputMatch[3] === '開車' ? 1 : 0;
+	const note = inputMatch[4];
+	const limit = parseInt(inputMatch[5], 10);
+
+	// 1. 驗證日期是否合法，並且不是過去的時間
+	const currentDateTime = new Date();
+	const startDateTime = new Date(startDate);
+	const endDateTime = new Date(endDate);
+
+	if (startDateTime < currentDateTime || endDateTime < currentDateTime) {
+		createResponse('text', `${profile.displayName} ，請設置今天後的日期。`);
+		return;
+	}
+
+	// 2. 驗證是否在同一個月份
+	if (startDateTime.getMonth() !== endDateTime.getMonth() || startDateTime.getFullYear() !== endDateTime.getFullYear()) {
+		createResponse('text', `${profile.displayName} ，請輸入同月份時間範圍。`);
+		return;
+	}
+
+	// 3. 根據 reverse_type 確定是否可以覆蓋或添加數據
+	// 假設 executeSQL 是一個可以執行 SQL 語句的函數
+	if (reverseType === 1) {
+		// 更新資料庫中的記錄
+		await executeSQL(
+				'UPDATE driver_dates SET start_date = @start_date, end_date = @end_date, reverse_type = @reverse_type, limit = @limit WHERE line_user_driver = @user_id',
+				{ start_date: startDate, end_date: endDate, reverse_type: reverseType, limit: limit, user_id: profile.userId }
+		);
+		createResponse('text', `${profile.displayName} ，已覆蓋原月份預約時間。`);
+	} else {
+		// 插入新的記錄到資料庫
+		await executeSQL(
+				'INSERT INTO driver_dates (line_user_driver, start_date, end_date, reverse_type, limit) VALUES (@user_id, @start_date, @end_date, @reverse_type, @limit)',
+				{ user_id: profile.userId, start_date: startDate, end_date: endDate, reverse_type: reverseType, limit: limit }
+		);
+		createResponse('text', `${profile.displayName} ，已設定好預約表。`);
+	}
+};
+
+// ==================================================== 主要處理指令函式 ====================================================
 async function handleEvent(event) {
 	if (event.type !== 'message' || event.message.type !== 'text') {
 		// ignore non-text-message event
@@ -607,7 +711,7 @@ async function handleEvent(event) {
 			// use reply API
 			return client.replyMessage(event.replyToken, echo);
 		}
-		// ==========================================================
+
 		if (userFunction) {
 			await userFunction(profile, event); // 正確指令執行對應的功能
 		} else if ((fareTransferMatch || bindDriverMatch) && userLineType === '乘客') {
@@ -680,7 +784,7 @@ async function handleEvent(event) {
 	return client.replyMessage(event.replyToken, echo);
 }
 
-// ============= listen on port =============
+// ========================== listen on port ==========================
 const port = process.env.PORT || 3000;
 // 預設的錯誤處理器
 app.use((err, req, res, next) => {
