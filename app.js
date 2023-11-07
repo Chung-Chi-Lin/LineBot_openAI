@@ -652,7 +652,7 @@ async function openDriverReverse(profile, event) {
 			'SELECT * FROM driver_dates WHERE line_user_driver = @userId',
 			{ userId: profile.userId }
 	);
-	console.log("records", records)
+
 	let sqlAction = 'INSERT INTO';
 	let sqlSetPart = '(line_user_driver, start_date, end_date, reverse_type, note, limit) VALUES (@userId, @startDate, @endDate, @reverseType, @note, @limit)';
 	let responseMessage = '已設定好預約表。';
@@ -665,10 +665,10 @@ async function openDriverReverse(profile, event) {
 				{ userId: profile.userId, startDate: startDate, endDate: endDate, reverseType: reverseTypeValue, note: note, limit: limit }
 		);
 		createResponse('text', `${profile.displayName} ，已設定好預約表。`);
-	}
+		return
+	};
 
-
-	const matchedRecord = records.find(record => {
+	const matchedRecord = records[0].find(record => {
 		const recordStartDate = new Date(record.start_date);
 		return record.line_user_driver === profile.userId &&
 				record.reverse_type === reverseTypeValue &&
@@ -684,7 +684,7 @@ async function openDriverReverse(profile, event) {
 		responseMessage = '已覆蓋原月份預約時間。';
 	} else if (reverseTypeValue === 0) {
 		// 如果 reverseType 為 0，檢查是否有重疊的日期範圍
-		isOverlap = records.some(record => record.line_user_driver === profile.userId &&
+		isOverlap = records[0].some(record => record.line_user_driver === profile.userId &&
 				record.reverse_type === 0 &&
 				new Date(record.start_date) <= endDateTime &&
 				new Date(record.end_date) >= startDateTime
