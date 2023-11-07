@@ -632,15 +632,13 @@ async function openDriverReverse(profile, event) {
 	const currentDateTime = new Date();
 	const startDateTime = new Date(startDate);
 	const endDateTime = new Date(endDate);
+	const currentYear = currentDateTime.getFullYear();
+	const currentMonth = currentDateTime.getMonth();
 
-	if (startDateTime < currentDateTime || endDateTime < currentDateTime) {
-		createResponse('text', `${profile.displayName} ，請設置今天後的日期。`);
-		return;
-	}
-
-	// 2. 驗證是否在同一個月份
-	if (startDateTime.getMonth() !== endDateTime.getMonth() || startDateTime.getFullYear() !== endDateTime.getFullYear()) {
-		createResponse('text', `${profile.displayName} ，請輸入同月份時間範圍。`);
+	if ((startDateTime.getFullYear() < currentYear) ||
+			(startDateTime.getFullYear() === currentYear && startDateTime.getMonth() < currentMonth) ||
+			(endDateTime < startDateTime)) {
+		createResponse('text', `${profile.displayName}，"月份請勿跨月" 以及 "結束日需大於起始日"。`);
 		return;
 	}
 
@@ -651,23 +649,60 @@ async function openDriverReverse(profile, event) {
 	}
  // 檢查記錄並決定 SQL 操作
 	const records = await executeSQL(
-			'SELECT * FROM driver_dates WHERE line_user_driver = @userId AND MONTH(start_date) = @currentMonth AND YEAR(start_date) = @currentYear',
-			{ userId: profile.userId, currentMonth: startDateTime.getMonth() + 1, currentYear: startDateTime.getFullYear() }
+			'SELECT * FROM driver_dates WHERE line_user_driver = @userId',
+			{ userId: profile.userId }
 	);
+	console.log("records", records)
+	let sqlAction = 'INSERT INTO';
+	let sqlSetPart = '(line_user_driver, start_date, end_date, reverse_type, note, limit) VALUES (@userId, @startDate, @endDate, @reverseType, @note, @limit)';
+	let responseMessage = '已設定好預約表。';
+	let isOverlap = false;
 
-	const isUpdate = records && records.length > 0;
 	const reverseTypeValue = reverseType === '開車' ? 1 : 0;
-	const sqlAction = isUpdate ? 'UPDATE' : 'INSERT INTO';
-	const sqlSetPart = isUpdate ? 'SET start_date = @startDate, end_date = @endDate, reverse_type = @reverseType, note = @note, limit = @limit WHERE line_user_driver = @userId' :
-			'(line_user_driver, start_date, end_date, reverse_type, note, limit) VALUES (@userId, @startDate, @endDate, @reverseType, @note, @limit)';
+	const matchedRecord = records.find(record => {
+		const recordStartDate = new Date(record.start_date);
+		return record.line_user_driver === profile.userId &&
+				record.reverse_type === reverseTypeValue &&
+				recordStartDate.getFullYear() === startDateTime.getFullYear() &&
+				recordStartDate.getMonth() === startDateTime.getMonth();
+	});
+	console.log("matchedRecord", matchedRecord)
+  // 決定是否更新或插入
+	if (matchedRecord) {
+		// 如果找到匹配的記錄且 reverseType 為 1，則更新該記錄
+		sqlAction = 'UPDATE';
+		sqlSetPart = 'SET start_date = @startDate, end_date = @endDate, reverse_type = @reverseType, note = @note, limit = @limit WHERE line_user_driver = @userId AND id = @recordId';
+		responseMessage = '已覆蓋原月份預約時間。';
+	} else if (reverseTypeValue === 0) {
+		// 如果 reverseType 為 0，檢查是否有重疊的日期範圍
+		isOverlap = records.some(record => record.line_user_driver === profile.userId &&
+				record.reverse_type === 0 &&
+				new Date(record.start_date) <= endDateTime &&
+				new Date(record.end_date) >= startDateTime
+		);
+		if (isOverlap) {
+			// 如果存在重疊區間，則更新重疊的記錄
+			sqlAction = 'UPDATE';
+			sqlSetPart = 'SET start_date = @startDate, end_date = @endDate, reverse_type = @reverseType, note = @note, limit = @limit WHERE line_user_driver = @userId AND reverse_type = 0 AND start_date <= @endDate AND end_date >= @startDate';
+			responseMessage = '因不開車重疊區間，故將原先不開車日期更新。';
+		}
+	}
 
-	// 執行 SQL
+// 執行 SQL
 	await executeSQL(
 			`${sqlAction} driver_dates ${sqlSetPart}`,
-			{ userId: profile.userId, startDate, endDate, reverseType: reverseTypeValue, note, limit: limit || null }
+			{
+				userId: profile.userId,
+				startDate,
+				endDate,
+				reverseType: reverseTypeValue,
+				note,
+				limit: limit || null,
+				recordId: matchedRecord ? matchedRecord.id : null
+			}
 	);
-	const responseMessage = isUpdate ? '已覆蓋原月份預約時間。' : '已設定好預約表。';
-	createResponse('text', `${profile.displayName} ，${responseMessage}`);
+
+	createResponse('text', `${profile.displayName}，${responseMessage}`);
 };
 
 // ==================================================== 主要處理指令函式 ====================================================
