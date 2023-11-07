@@ -612,9 +612,8 @@ async function totalFareCount(profile) {
 
 // 司機-開放預約時間
 async function openDriverReverse(profile, event) {
-	// 0. 解析司機輸入的訊息
-	// 修改正則表達式使乘客數量可選
-	const inputPattern = /預約日設定:(\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2}):(開車|不開車) 備註:([^乘客數量:]*)\s?(?:乘客數量:(\d+))?/;
+	// 正則表達式使乘客數量可選
+	const inputPattern = /預約日設定:(\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2}):(開車|不開車) 備註:([^乘客數量:]*)\s*(?:乘客數量:(\d+))?/;
 	const inputMatch = event.message.text.match(inputPattern);
 
 	if (!inputMatch) {
@@ -650,37 +649,25 @@ async function openDriverReverse(profile, event) {
 		createResponse('text', `${profile.displayName} ，請提供乘客數量。`);
 		return;
 	}
-	// 檢查資料庫中是否存在符合 profile.userId 且是當月的記錄
-	const existingRecord = await executeSQL(
+ // 檢查記錄並決定 SQL 操作
+	const records = await executeSQL(
 			'SELECT * FROM driver_dates WHERE line_user_driver = @userId AND MONTH(start_date) = @currentMonth AND YEAR(start_date) = @currentYear',
 			{ userId: profile.userId, currentMonth: startDateTime.getMonth() + 1, currentYear: startDateTime.getFullYear() }
 	);
 
-	if (!existingRecord || existingRecord.length === 0) {
-		const reverseTypeValue = reverseType === '開車' ? 1 : 0;
-		await executeSQL(
-				'INSERT INTO driver_dates (line_user_driver, start_date, end_date, reverse_type, note, limit) VALUES (@userId, @startDate, @endDate, @reverseType, @note, @limit)',
-				{ userId: profile.userId, startDate: startDate, endDate: endDate, reverseType: reverseTypeValue, note: note, limit: limit }
-		);
-		createResponse('text', `${profile.displayName} ，已設定好預約表。`);
-	} else {
-		// 3. 根據 reverseType 確定是否可以覆蓋或添加數據
-		// 如果是 '開車' 狀態，更新資料庫記錄，包括 limit
-		if (reverseType === '開車') {
-			await executeSQL(
-					'UPDATE driver_dates SET start_date = @startDate, end_date = @endDate, reverse_type = @reverseType, note = @note, limit = @limit WHERE line_user_driver = @userId',
-					{ startDate: startDate, endDate: endDate, reverseType: 1, note: note, limit: limit, userId: profile.userId }
-			);
-			createResponse('text', `${profile.displayName} ，已覆蓋原月份預約時間。`);
-		} else {
-			// 插入新的預約到資料庫，不包含 limit
-			await executeSQL(
-					'INSERT INTO driver_dates (line_user_driver, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)',
-					{ userId: profile.userId, startDate: startDate, endDate: endDate, reverseType: 0, note: note }
-			);
-			createResponse('text', `${profile.displayName} ，已設定好預約表。`);
-		}
-	}
+	const isUpdate = records && records.length > 0;
+	const reverseTypeValue = reverseType === '開車' ? 1 : 0;
+	const sqlAction = isUpdate ? 'UPDATE' : 'INSERT INTO';
+	const sqlSetPart = isUpdate ? 'SET start_date = @startDate, end_date = @endDate, reverse_type = @reverseType, note = @note, limit = @limit WHERE line_user_driver = @userId' :
+			'(line_user_driver, start_date, end_date, reverse_type, note, limit) VALUES (@userId, @startDate, @endDate, @reverseType, @note, @limit)';
+
+	// 執行 SQL
+	await executeSQL(
+			`${sqlAction} driver_dates ${sqlSetPart}`,
+			{ userId: profile.userId, startDate, endDate, reverseType: reverseTypeValue, note, limit: limit || null }
+	);
+	const responseMessage = isUpdate ? '已覆蓋原月份預約時間。' : '已設定好預約表。';
+	createResponse('text', `${profile.displayName} ，${responseMessage}`);
 };
 
 // ==================================================== 主要處理指令函式 ====================================================
