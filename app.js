@@ -657,8 +657,17 @@ async function openDriverReverse(profile, event) {
 	let sqlSetPart = '(line_user_driver, start_date, end_date, reverse_type, note, limit) VALUES (@userId, @startDate, @endDate, @reverseType, @note, @limit)';
 	let responseMessage = '已設定好預約表。';
 	let isOverlap = false;
-
 	const reverseTypeValue = reverseType === '開車' ? 1 : 0;
+
+	if (!records || records.length === 0) {
+		await executeSQL(
+				'INSERT INTO driver_dates (line_user_driver, start_date, end_date, reverse_type, note, limit) VALUES (@userId, @startDate, @endDate, @reverseType, @note, @limit)',
+				{ userId: profile.userId, startDate: startDate, endDate: endDate, reverseType: reverseTypeValue, note: note, limit: limit }
+		);
+		createResponse('text', `${profile.displayName} ，已設定好預約表。`);
+	}
+
+
 	const matchedRecord = records.find(record => {
 		const recordStartDate = new Date(record.start_date);
 		return record.line_user_driver === profile.userId &&
