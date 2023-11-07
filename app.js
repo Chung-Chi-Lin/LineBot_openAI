@@ -614,7 +614,7 @@ async function totalFareCount(profile) {
 async function openDriverReverse(profile, event) {
 	// 0. 解析司機輸入的訊息
 	// 修改正則表達式使乘客數量可選
-	const inputPattern = /預約日設定:(\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2}):(開車|不開車) 備註:(.*) (?:乘客數量:(\d+))?/;
+	const inputPattern = /預約日設定:(\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2}):(開車|不開車) 備註:([^乘客數量:]*)\s?(?:乘客數量:(\d+))?/;
 	const inputMatch = event.message.text.match(inputPattern);
 
 	if (!inputMatch) {
