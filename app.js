@@ -614,7 +614,7 @@ async function totalFareCount(profile) {
 async function openDriverReverse(profile, event) {
 	// 0. 解析司機輸入的訊息
 	// 修改正則表達式使乘客數量可選
-	const inputPattern = /預約日設定: (\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2}):(開車|不開車) 備註:(.*) (?:乘客數量:(\d+))?/;
+	const inputPattern = /預約日設定:(\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2}):(開車|不開車) 備註:(.*) (?:乘客數量:(\d+))?/;
 	const inputMatch = event.message.text.match(inputPattern);
 
 	if (!inputMatch) {
@@ -629,30 +629,57 @@ async function openDriverReverse(profile, event) {
 	// 如果 reverseType 為開車且相應的數量匹配存在，則解析乘客數量；如果不開車，則乘客數量為 null
 	const limit = reverseType === '開車' && inputMatch[5] ? parseInt(inputMatch[5], 10) : null;
 
+	// 1. 驗證日期是否合法，並且不是過去的時間
+	const currentDateTime = new Date();
+	const startDateTime = new Date(startDate);
+	const endDateTime = new Date(endDate);
+
+	if (startDateTime < currentDateTime || endDateTime < currentDateTime) {
+		createResponse('text', `${profile.displayName} ，請設置今天後的日期。`);
+		return;
+	}
+
+	// 2. 驗證是否在同一個月份
+	if (startDateTime.getMonth() !== endDateTime.getMonth() || startDateTime.getFullYear() !== endDateTime.getFullYear()) {
+		createResponse('text', `${profile.displayName} ，請輸入同月份時間範圍。`);
+		return;
+	}
+
 	// 若是開車，但沒有提供乘客數量，則返回錯誤
 	if (reverseType === '開車' && limit === null) {
 		createResponse('text', `${profile.displayName} ，請提供乘客數量。`);
 		return;
 	}
+	// 檢查資料庫中是否存在符合 profile.userId 且是當月的記錄
+	const existingRecord = await executeSQL(
+			'SELECT * FROM driver_dates WHERE line_user_driver = @userId AND MONTH(start_date) = @currentMonth AND YEAR(start_date) = @currentYear',
+			{ userId: profile.userId, currentMonth: startDateTime.getMonth() + 1, currentYear: startDateTime.getFullYear() }
+	);
 
-	// ... 其餘代碼維持不變 ...
-
-	// 3. 根據 reverseType 確定是否可以覆蓋或添加數據
-	// 修改 SQL 語句和邏輯以適應可選的 limit
-	if (reverseType === '開車') {
-		// 更新資料庫中的記錄，此處包含 limit
+	if (!existingRecord || existingRecord.length === 0) {
+		const reverseTypeValue = reverseType === '開車' ? 1 : 0;
 		await executeSQL(
-				'UPDATE driver_dates SET start_date = ?, end_date = ?, reverse_type = ?, note = ?, limit = ? WHERE line_user_driver = ?',
-				[startDate, endDate, 1, note, limit, profile.userId]
-		);
-		createResponse('text', `${profile.displayName} ，已覆蓋原月份預約時間。`);
-	} else {
-		// 插入新的記錄到資料庫，此處不包含 limit
-		await executeSQL(
-				'INSERT INTO driver_dates (line_user_driver, start_date, end_date, reverse_type, note) VALUES (?, ?, ?, ?, ?)',
-				[profile.userId, startDate, endDate, 0, note]
+				'INSERT INTO driver_dates (line_user_driver, start_date, end_date, reverse_type, note, limit) VALUES (@userId, @startDate, @endDate, @reverseType, @note, @limit)',
+				{ userId: profile.userId, startDate: startDate, endDate: endDate, reverseType: reverseTypeValue, note: note, limit: limit }
 		);
 		createResponse('text', `${profile.displayName} ，已設定好預約表。`);
+	} else {
+		// 3. 根據 reverseType 確定是否可以覆蓋或添加數據
+		// 如果是 '開車' 狀態，更新資料庫記錄，包括 limit
+		if (reverseType === '開車') {
+			await executeSQL(
+					'UPDATE driver_dates SET start_date = @startDate, end_date = @endDate, reverse_type = @reverseType, note = @note, limit = @limit WHERE line_user_driver = @userId',
+					{ startDate: startDate, endDate: endDate, reverseType: 1, note: note, limit: limit, userId: profile.userId }
+			);
+			createResponse('text', `${profile.displayName} ，已覆蓋原月份預約時間。`);
+		} else {
+			// 插入新的預約到資料庫，不包含 limit
+			await executeSQL(
+					'INSERT INTO driver_dates (line_user_driver, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)',
+					{ userId: profile.userId, startDate: startDate, endDate: endDate, reverseType: 0, note: note }
+			);
+			createResponse('text', `${profile.displayName} ，已設定好預約表。`);
+		}
 	}
 };
 
