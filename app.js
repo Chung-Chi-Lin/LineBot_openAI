@@ -667,7 +667,7 @@ async function openDriverReverse(profile, event) {
 		createResponse('text', `${profile.displayName} ，已設定好預約表。`);
 		return
 	};
-
+ console.log("測試", records[0])
 	const matchedRecord = records[0].find(record => {
 		const recordStartDate = new Date(record.start_date);
 		return record.line_user_driver === profile.userId &&
