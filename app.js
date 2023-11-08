@@ -680,7 +680,7 @@ async function openDriverReverse(profile, event) {
 	if (matchedRecord) {
 		// 如果找到匹配的記錄且 reverseType 為 1，則更新該記錄
 		sqlAction = 'UPDATE';
-		sqlSetPart = 'SET start_date = @startDate, end_date = @endDate, reverse_type = @reverseType, note = @note, limit = @limit WHERE line_user_driver = @userId AND id = @recordId';
+		sqlSetPart = 'SET start_date = @startDate, end_date = @endDate, reverse_type = @reverseType, note = @note, limit = @limit WHERE line_user_driver = @userId AND auto_id = @recordId';
 		responseMessage = '已覆蓋原月份預約時間。';
 	} else if (reverseTypeValue === 0) {
 		// 如果 reverseType 為 0，檢查是否有重疊的日期範圍
@@ -707,7 +707,7 @@ async function openDriverReverse(profile, event) {
 				reverseType: reverseTypeValue,
 				note,
 				limit: limit || null,
-				recordId: matchedRecord ? matchedRecord.id : null
+				recordId: matchedRecord ? matchedRecord.auto_id : null
 			}
 	);
 
