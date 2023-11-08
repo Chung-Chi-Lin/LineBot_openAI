@@ -628,7 +628,7 @@ async function openDriverReverse(profile, event) {
 	// 如果 reverseType 為開車且相應的數量匹配存在，則解析乘客數量；如果不開車，則乘客數量為 null
 	const limit = reverseType === '開車' && inputMatch[5] ? parseInt(inputMatch[5], 10) : null;
 
-	// 1. 驗證日期是否合法，並且不是過去的時間
+	// 1. 驗證日期與乘客數量是否合法，不接受過去時間
 	const currentDateTime = new Date();
 	const startDateTime = new Date(startDate);
 	const endDateTime = new Date(endDate);
@@ -638,85 +638,83 @@ async function openDriverReverse(profile, event) {
 	if ((startDateTime.getFullYear() < currentYear) ||
 			(startDateTime.getFullYear() === currentYear && startDateTime.getMonth() < currentMonth) ||
 			(endDateTime < startDateTime)) {
-		createResponse('text', `${profile.displayName}，"月份請勿跨月" 以及 "結束日需大於起始日"。`);
+		createResponse('text', `${profile.displayName}，"勿跨年月份" 以及 "結束日需大於起始日"。`);
+		return;
+	} else if (reverseType === '開車' && limit === null && limit <= 0) {
+		createResponse('text', `${profile.displayName} ，開車時請提供乘客數量。`);
 		return;
 	}
 
-	// 若是開車，但沒有提供乘客數量，則返回錯誤
-	if (reverseType === '開車' && limit === null) {
-		createResponse('text', `${profile.displayName} ，請提供乘客數量。`);
-		return;
-	}
  // 檢查記錄並決定 SQL 操作
 	const records = await executeSQL(
 			'SELECT * FROM driver_dates WHERE line_user_driver = @userId',
 			{ userId: profile.userId }
 	);
+	console.log(records);
+	// let sqlAction = 'INSERT INTO';
+	// let sqlSetPart = '(line_user_driver, start_date, end_date, reverse_type, note, limit) VALUES (@userId, @startDate, @endDate, @reverseType, @note, @limit)';
+	// let responseMessage = '已設定好預約表。';
+	// let isOverlap = false;
+	// const reverseTypeValue = reverseType === '開車' ? 1 : 0;
 
-	let sqlAction = 'INSERT INTO';
-	let sqlSetPart = '(line_user_driver, start_date, end_date, reverse_type, note, limit) VALUES (@userId, @startDate, @endDate, @reverseType, @note, @limit)';
-	let responseMessage = '已設定好預約表。';
-	let isOverlap = false;
-	const reverseTypeValue = reverseType === '開車' ? 1 : 0;
-
-	if (records[0].length <= 0) {
-		await executeSQL(
-				'INSERT INTO driver_dates (line_user_driver, start_date, end_date, reverse_type, note, limit) VALUES (@userId, @startDate, @endDate, @reverseType, @note, @limit)',
-				{ userId: profile.userId, startDate: startDate, endDate: endDate, reverseType: reverseTypeValue, note: note, limit: limit }
-		);
-		createResponse('text', `${profile.displayName} ，已設定好預約表。`);
-		return
-	};
-
-	const matchedRecord = records[0].find(record => {
-		const recordStartDate = new Date(record.start_date);
-		return record.line_user_driver === profile.userId &&
-				record.reverse_type === reverseTypeValue &&
-				recordStartDate.getFullYear() === startDateTime.getFullYear() &&
-				recordStartDate.getMonth() === startDateTime.getMonth();
-	});
-
-  // 決定是否更新或插入
-	if (matchedRecord) {
-		// 如果找到匹配的記錄且 reverseType 為 1，則更新該記錄
-		sqlAction = 'UPDATE';
-		sqlSetPart = 'SET start_date = @startDate, end_date = @endDate, reverse_type = @reverseType, note = @note, limit = @limit WHERE line_user_driver = @userId AND auto_id = @recordId';
-		responseMessage = '已覆蓋原月份預約時間。';
-	} else if (reverseTypeValue === 0) {
-		// 如果 reverseType 為 0，檢查是否有重疊的日期範圍
-		isOverlap = records[0].some(record => record.line_user_driver === profile.userId &&
-				record.reverse_type === 0 &&
-				new Date(record.start_date) <= endDateTime &&
-				new Date(record.end_date) >= startDateTime
-		);
-		if (isOverlap && reverseTypeValue === 0) {
-			// 如果存在重疊區間，且是不開車，則更新重疊的記錄
-			sqlAction = 'UPDATE';
-			sqlSetPart = 'SET start_date = LEAST(@startDate, start_date), end_date = GREATEST(@endDate, end_date), reverse_type = @reverseType, note = @note, limit = @limit WHERE line_user_driver = @userId AND reverse_type = 0 AND start_date <= @endDate AND end_date >= @startDate';
-			responseMessage = '因不開車重疊區間，故將原先不開車日期更新。';
-		} else if (!isOverlap && reverseTypeValue === 0) {
-			// 如果不存在重疊區間，且是不開車，則新增記錄
-			sqlAction = 'INSERT INTO';
-			sqlSetPart = '(line_user_driver, start_date, end_date, reverse_type, note, limit) VALUES (@userId, @startDate, @endDate, @reverseType, @note, @limit)';
-			responseMessage = '已設定好預約表。';
-		}
-	}
-
-// 執行 SQL
-	await executeSQL(
-			`${sqlAction} driver_dates ${sqlSetPart}`,
-			{
-				userId: profile.userId,
-				startDate,
-				endDate,
-				reverseType: reverseTypeValue,
-				note,
-				limit: limit || null,
-				recordId: matchedRecord ? matchedRecord.auto_id : null
-			}
-	);
-
-	createResponse('text', `${profile.displayName}，${responseMessage}`);
+// 	if (records[0].length <= 0) {
+// 		await executeSQL(
+// 				'INSERT INTO driver_dates (line_user_driver, start_date, end_date, reverse_type, note, limit) VALUES (@userId, @startDate, @endDate, @reverseType, @note, @limit)',
+// 				{ userId: profile.userId, startDate: startDate, endDate: endDate, reverseType: reverseTypeValue, note: note, limit: limit }
+// 		);
+// 		createResponse('text', `${profile.displayName} ，已設定好預約表。`);
+// 		return
+// 	};
+//
+// 	const matchedRecord = records[0].find(record => {
+// 		const recordStartDate = new Date(record.start_date);
+// 		return record.line_user_driver === profile.userId &&
+// 				record.reverse_type === reverseTypeValue &&
+// 				recordStartDate.getFullYear() === startDateTime.getFullYear() &&
+// 				recordStartDate.getMonth() === startDateTime.getMonth();
+// 	});
+//
+//   // 決定是否更新或插入
+// 	if (matchedRecord && reverseTypeValue === 1) {
+// 		// 如果找到匹配的記錄且 reverseType 為 1，則更新該記錄
+// 		sqlAction = 'UPDATE';
+// 		sqlSetPart = 'SET start_date = @startDate, end_date = @endDate, reverse_type = @reverseType, note = @note, limit = @limit WHERE line_user_driver = @userId AND auto_id = @recordId';
+// 		responseMessage = '已覆蓋原月份預約時間。';
+// 	} else if (reverseTypeValue === 0) {
+// 		// 如果 reverseType 為 0，檢查是否有重疊的日期範圍
+// 		isOverlap = records[0].some(record => record.line_user_driver === profile.userId &&
+// 				record.reverse_type === 0 &&
+// 				new Date(record.start_date) <= endDateTime &&
+// 				new Date(record.end_date) >= startDateTime
+// 		);
+// 		if (isOverlap) {
+// 			// 如果存在重疊區間，且是不開車，則更新重疊的記錄
+// 			sqlAction = 'UPDATE';
+// 			sqlSetPart = 'SET start_date = LEAST(@startDate, start_date), end_date = GREATEST(@endDate, end_date), reverse_type = @reverseType, note = @note, limit = @limit WHERE line_user_driver = @userId AND reverse_type = 0 AND start_date <= @endDate AND end_date >= @startDate';
+// 			responseMessage = '因不開車重疊區間，故將原先不開車日期更新。';
+// 		} else {
+// 			// 如果不存在重疊區間，且是不開車，則新增記錄
+// 			sqlAction = 'INSERT INTO';
+// 			sqlSetPart = '(line_user_driver, start_date, end_date, reverse_type, note, limit) VALUES (@userId, @startDate, @endDate, @reverseType, @note, @limit)';
+// 			responseMessage = '已設定好預約表。';
+// 		}
+// 	}
+//
+// // 執行 SQL
+// 	await executeSQL(
+// 			`${sqlAction} driver_dates ${sqlSetPart}`,
+// 			{
+// 				userId: profile.userId,
+// 				startDate,
+// 				endDate,
+// 				reverseType: reverseTypeValue,
+// 				note,
+// 				limit: limit || null,
+// 				recordId: matchedRecord ? matchedRecord.auto_id : null
+// 			}
+// 	);
+//
+// 	createResponse('text', `${profile.displayName}，${responseMessage}`);
 };
 
 // ==================================================== 主要處理指令函式 ====================================================
