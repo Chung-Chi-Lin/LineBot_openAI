@@ -704,6 +704,8 @@ console.log("overlapCheck[0]", overlapCheck[0]);
 			responseMessage = '已將多筆重疊不開車時段覆蓋為新預約時間。';
 		}
 	}
+	console.log(startDate);
+	console.log(endDate);
 // 執行 SQL
 	await executeSQL(
 			`${sqlAction} driver_dates ${sqlSetPart}`,
