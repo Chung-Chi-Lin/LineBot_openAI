@@ -246,7 +246,7 @@ async function searchDriveDay(profile, event, userLineType) {
 	if (userLineType === '司機') {
 		driverId = profile.userId;
 	}
-	console.log("driverId",driverId);
+
 	// 查詢當前及下個月的預約信息
 	const driveDaysData = await executeSQL(
 			`SELECT * FROM driver_dates WHERE line_user_driver = @driverId 
@@ -260,30 +260,29 @@ async function searchDriveDay(profile, event, userLineType) {
 				nextYear
 			}
 	);
-	console.log("driveDaysData", driveDaysData)
-  // 組合訊息
-	let message = `${profile.displayName}，您目前綁定的司機開車資訊如下:\n`;
+
+	// 組合訊息
+	let message = `${profile.displayName}，您目前綁定的司機開車資訊如下:\n\n`;
 	if (driveDaysData[0].length === 0) {
 		message += '無預約資訊';
 	} else {
-		let previousMonth = null; // 用於記錄前一筆資料的月份
-		driveDaysData[0].forEach((day, index, array) => {
+		for (let i = 0; i < driveDaysData[0].length; i++) {
+			const day = driveDaysData[0][i];
 			const type = day.reverse_type === 1 ? '開車' : '不開車';
 			const startDateStr = formatDateToChinese(day.start_date);
 			const endDateStr = formatDateToChinese(day.end_date);
-			const startMonth = new Date(day.start_date).getMonth(); // 獲取 start_date 的月份
+			const startMonth = new Date(day.start_date).getMonth();
 			const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
 			const note = day.note || '無備註';
-			const limitStr = day.reverse_type === 1 ? `乘客數尚餘:${day.limit}位` : '';
+			const limitStr = day.reverse_type === 1 ? ` 乘客數尚餘:${day.limit}位` : '';
 
-			message += `${type}> 日期:${dateRange} 備註:${note} ${limitStr}\n`;
+			message += `${type}> 日期:${dateRange} 備註:${note}${limitStr}\n`;
 
-			// 檢查是否為當月最後一筆或月份變化
-			if (index === array.length - 1 || (previousMonth !== null && previousMonth !== startMonth)) {
-				message += '\n\n\n'; // 月份結束，加入空行
+			// 檢查是否是最後一條記錄或下一條記錄是否跨月
+			if (i === driveDaysData[0].length - 1 || (driveDaysData[0][i + 1] && new Date(driveDaysData[0][i + 1].start_date).getMonth() !== startMonth)) {
+				message += '\n\n'; // 在月份改變時加入空行
 			}
-			previousMonth = startMonth; // 更新 previousMonth 為當前資料的月份
-		});
+		}
 	}
 
 	createResponse('text', message);
@@ -772,7 +771,7 @@ async function openDriverReverse(profile, event) {
 			responseMessage = '已將多筆重疊不開車時段覆蓋為新預約時間。';
 		}
 	}
-	console.log("overlapCheck", overlapCheck);
+
 	const recordId = overlapCheck && overlapCheck[0] && overlapCheck[0].length > 0 ? overlapCheck[0][0].auto_id : null;
 
   // 執行 SQL
