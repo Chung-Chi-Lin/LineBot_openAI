@@ -261,28 +261,36 @@ async function searchDriveDay(profile, event, userLineType) {
 			}
 	);
 
-	// 組合訊息
 	let message = `${profile.displayName}，您目前綁定的司機開車資訊如下:\n\n`;
+	let lastMonth = null; // 用於追蹤上一條記錄的月份
+
 	if (driveDaysData[0].length === 0) {
 		message += '無預約資訊';
 	} else {
-		for (let i = 0; i < driveDaysData[0].length; i++) {
-			const day = driveDaysData[0][i];
+		driveDaysData[0].forEach((day, index) => {
+			const startDate = new Date(day.start_date);
+			const endDate = new Date(day.end_date);
+			const startMonth = startDate.getMonth() + 1;
+			const startYear = startDate.getFullYear();
+
+			// 當月份改變時，添加月份和年份
+			if (lastMonth !== startMonth) {
+				if (lastMonth !== null) {
+					message += '\n'; // 在上一個月份後添加換行
+				}
+				message += `${startYear}年${startMonth}月份\n`;
+			}
+
 			const type = day.reverse_type === 1 ? '開車' : '不開車';
-			const startDateStr = formatDateToChinese(day.start_date);
-			const endDateStr = formatDateToChinese(day.end_date);
-			const startMonth = new Date(day.start_date).getMonth();
+			const startDateStr = `${startMonth}月${startDate.getDate()}日`;
+			const endDateStr = startMonth === endDate.getMonth() + 1 ? `${endDate.getDate()}日` : `${endDate.getMonth() + 1}月${endDate.getDate()}日`;
 			const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
 			const note = day.note || '無備註';
 			const limitStr = day.reverse_type === 1 ? ` 乘客數尚餘:${day.limit}位` : '';
 
 			message += `${type}> 日期:${dateRange} 備註:${note}${limitStr}\n`;
-
-			// 檢查是否是最後一條記錄或下一條記錄是否跨月
-			if (i === driveDaysData[0].length - 1 || (driveDaysData[0][i + 1] && new Date(driveDaysData[0][i + 1].start_date).getMonth() !== startMonth)) {
-				message += '\n\n'; // 在月份改變時加入空行
-			}
-		}
+			lastMonth = startMonth; // 更新追蹤的月份
+		});
 	}
 
 	createResponse('text', message);
