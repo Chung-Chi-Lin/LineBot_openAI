@@ -64,11 +64,11 @@ app.post('/callback', line.middleware(config), (req, res) => {
 const COMMANDS_MAP = {
 	乘客: {
 		車費匯款: {
-			function: fareTransfer,
+			function: transferFare,
 			remark: '先行匯款後輸入之金額紀錄 (輸入範例> 車費匯款:1200)',
 		},
 		車費查詢: {
-			function: fareSearch,
+			function: searchFare,
 			remark:
 					'確認加減原匯款金額之剩餘費用，例如:未搭車或多搭乘 (輸入範例> 車費查詢)',
 		},
@@ -79,6 +79,10 @@ const COMMANDS_MAP = {
 		司機預約表: {
 			function: pickDriverReverse,
 			remark: '點選網址連結 Google 預約乘車時間，請於上方查看司機規定之預約方式 (輸入範例> 司機預約表)',
+		},
+		開車日查詢: {
+			function: searchDriveDay,
+			remark: '查看司機發車日或不開車日 (輸入範例> 開車日查詢)',
 		},
 		// 可以根據需求繼續新增功能
 	},
@@ -103,7 +107,11 @@ const COMMANDS_MAP = {
 		},
 		預約日設定: {
 			function: openDriverReverse,
-			remark: '查看先前預約以及設置開放預約乘客時間，乘客端可以搜尋到您開放的日期，請務必輸入區間及備註，如僅有一天區間都設定同日期。\n(複製範例1> 預約日設定: 2023-10-03~2023-10-28:開車 備註:不含國定假日 乘客數量:3)\n(複製範例2> 預約日設定: 2023-10-10~2023-10-15:不開車 備註:出國)',
+			remark: '查看先前預約以及設置開放預約乘客時間，乘客端可以搜尋到您開放的日期，請務必輸入區間及備註，如僅有一天區間都設定同日期。\n\n(複製範例1> 預約日設定: 2023-10-03~2023-10-28:開車 備註:不含國定假日 乘客數量:3)\n\n(複製範例2> 預約日設定: 2023-10-10~2023-10-15:不開車 備註:出國)',
+		},
+		開車日查詢: {
+			function: searchDriveDay,
+			remark: '查看司機發車日或不開車日 (輸入範例> 開車日查詢)',
 		},
 		// 可以根據需求繼續新增功能
 	},
@@ -158,7 +166,7 @@ function createResponse(type, message) {
 // 共用-指令格式
 function getCommandsAsString(userType) {
 	const commands = Object.entries(COMMANDS_MAP[userType]).map(
-			([key, value]) => `\n > ${key}: ${value.remark}`
+			([key, value]) => `\n ＞ ${key}: ${value.remark}`
 	);
 	return `指令為:\n ${commands.join('。\n')}。`;
 }
@@ -221,10 +229,70 @@ async function handleUserTypeChange(profile, userType) {
 	);
 }
 
+// 共用-開車日查詢
+async function searchDriveDay(profile, event, userLineType) {
+	// 查詢是否有符合的 line_user_driver
+	const userData = await executeSQL(
+			'SELECT line_user_driver FROM users WHERE line_user_id = @p1',
+			{p1: profile.userId}
+	);
+	let driverId = userData[0].line_user_driver;
+	const currentDate = new Date();
+	const currentMonth = currentDate.getMonth() + 1;
+	const currentYear = currentDate.getFullYear();
+	const nextMonth = (currentMonth % 12) + 1;
+	const nextYear = currentMonth === 12 ? currentYear + 1 : currentYear;
+
+	if (userLineType === '司機') {
+		driverId = profile.userId;
+	}
+	console.log("driverId",driverId);
+	// 查詢當前及下個月的預約信息
+	const driveDaysData = await executeSQL(
+			`SELECT * FROM driver_dates WHERE line_user_driver = @driverId 
+     AND ((MONTH(start_date) = @currentMonth AND YEAR(start_date) = @currentYear) 
+     OR (MONTH(start_date) = @nextMonth AND YEAR(start_date) = @nextYear))`,
+			{
+				driverId,
+				currentMonth,
+				currentYear,
+				nextMonth,
+				nextYear
+			}
+	);
+	console.log("driveDaysData", driveDaysData)
+  // 組合訊息
+	let message = `${profile.displayName}，您目前綁定的司機開車資訊如下:\n`;
+	if (driveDaysData[0].length === 0) {
+		message += '無預約資訊';
+	} else {
+		let previousMonth = null; // 用於記錄前一筆資料的月份
+		driveDaysData[0].forEach((day, index, array) => {
+			const type = day.reverse_type === 1 ? '開車' : '不開車';
+			const startDateStr = formatDateToChinese(day.start_date);
+			const endDateStr = formatDateToChinese(day.end_date);
+			const startMonth = new Date(day.start_date).getMonth(); // 獲取 start_date 的月份
+			const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
+			const note = day.note || '無備註';
+			const limitStr = day.reverse_type === 1 ? `乘客數尚餘:${day.limit}位` : '';
+
+			message += `${type}> 日期:${dateRange} 備註:${note} ${limitStr}\n`;
+
+			// 檢查是否為當月最後一筆或月份變化
+			if (index === array.length - 1 || (previousMonth !== null && previousMonth !== startMonth)) {
+				message += '\n\n\n'; // 月份結束，加入空行
+			}
+			previousMonth = startMonth; // 更新 previousMonth 為當前資料的月份
+		});
+	}
+
+	createResponse('text', message);
+}
+
 // ==================================================== 對應指令功能 ====================================================
 // ============= 乘客對應函式 =============
 // 乘客-車費匯款的操作
-async function fareTransfer(profile, event) {
+async function transferFare(profile, event) {
 	const fareMatch = event.message.text.match(
 			/^車費匯款[:：]?\s*([1-9][0-9]*)$/
 	);
@@ -271,7 +339,7 @@ async function fareTransfer(profile, event) {
 }
 
 // 乘客-車費查詢的操作
-async function fareSearch(profile) {
+async function searchFare(profile) {
 	const [userFare] = await executeSQL(
 			'SELECT TOP 1 user_fare, update_time FROM fare WHERE line_user_id = @p1 ORDER BY ABS(DATEDIFF(DAY, update_time, GETDATE()))',
 			{p1: profile.userId}
@@ -611,7 +679,7 @@ async function totalFareCount(profile) {
 	createResponse('text', message);
 }
 
-// 司機-開放預約時間
+// 司機-開放預約時間searchDriveDay
 async function openDriverReverse(profile, event) {
 	// 正則表達式使乘客數量可選
 	const inputPattern = /預約日設定:(\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2}):(開車|不開車) 備註:([^乘客數量:]*)\s*(?:乘客數量:(\d+))?/;
@@ -664,7 +732,7 @@ async function openDriverReverse(profile, event) {
 				endDate,
 			}
 	);
-console.log("overlapCheck[0]", overlapCheck[0]);
+
 	// 開車儲存處理
 	if (reverseTypeValue === 1) {
 		if (overlapCheck[0].length <= 0) {
@@ -774,10 +842,10 @@ async function handleEvent(event) {
 		}
 
 		if (userFunction) {
-			await userFunction(profile, event); // 正確指令執行對應的功能
+			await userFunction(profile, event, userLineType); // 正確指令執行對應的功能
 		} else if ((fareTransferMatch || bindDriverMatch) && userLineType === '乘客') {
 			if (fareTransferMatch) {
-				await fareTransfer(profile, event); // 車費匯款特別處理
+				await transferFare(profile, event); // 車費匯款特別處理
 			}
 			if (bindDriverMatch) {
 				await bindDriverId(profile, event); // 綁定司機 ID 特別處理
