@@ -679,7 +679,7 @@ async function totalFareCount(profile) {
 	createResponse('text', message);
 }
 
-// 司機-開放預約時間searchDriveDay
+// 司機-開放預約時間
 async function openDriverReverse(profile, event) {
 	// 正則表達式使乘客數量可選
 	const inputPattern = /預約日設定:(\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2}):(開車|不開車) 備註:([^乘客數量:]*)\s*(?:乘客數量:(\d+))?/;
@@ -772,8 +772,10 @@ async function openDriverReverse(profile, event) {
 			responseMessage = '已將多筆重疊不開車時段覆蓋為新預約時間。';
 		}
 	}
+	console.log("overlapCheck", overlapCheck);
+	const recordId = overlapCheck && overlapCheck[0] && overlapCheck[0].length > 0 ? overlapCheck[0][0].auto_id : null;
 
-// 執行 SQL
+  // 執行 SQL
 	await executeSQL(
 			`${sqlAction} driver_dates ${sqlSetPart}`,
 			{
@@ -783,7 +785,7 @@ async function openDriverReverse(profile, event) {
 				reverseType: reverseTypeValue,
 				note: note || null,
 				limit: limit || null,
-				recordId: overlapCheck[0] ? overlapCheck[0][0].auto_id : null
+				recordId: recordId
 			}
 	);
 
