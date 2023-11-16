@@ -459,14 +459,14 @@ async function pickDriverReverse(profile, event) {
 		createResponse('text', '找不到對應的司機資訊。');
 		return;
 	}
-
+	console.log("userData", userData)
 	const driverId = userData[0].line_user_driver;
 	const currentDate = new Date();
 	const currentMonthCheck = currentDate.getMonth() + 1;
 	const currentYearCheck = currentDate.getFullYear();
 	const nextMonth = (currentMonth % 12) + 1;
-	const nextYear = currentMonth === 12 ? currentYear + 1 : currentYear;
-
+	const nextYear = currentMonthCheck === 12 ? currentYearCheck + 1 : currentYearCheck;
+	console.log(driverId, currentMonthCheck, currentYearCheck, nextMonth, nextYear);
 	// 查詢當前及下個月的預約信息
 	const driveDaysData = await executeSQL(
 			`SELECT * FROM driver_dates WHERE line_user_driver = @driverId 
