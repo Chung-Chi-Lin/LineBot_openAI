@@ -459,8 +459,9 @@ async function pickDriverReverse(profile, event) {
 		createResponse('text', '找不到對應的司機資訊。');
 		return;
 	}
-	console.log("userData", userData)
-	const driverId = userData[0].line_user_driver;
+	console.log("userData1", userData)
+	console.log("userData1", userData[0][0].line_user_driver)
+	const driverId = userData[0][0].line_user_driver;
 	const currentDate = new Date();
 	const currentMonthCheck = currentDate.getMonth() + 1;
 	const currentYearCheck = currentDate.getFullYear();
