@@ -972,6 +972,7 @@ async function handleEvent(event) {
 				/^([a-zA-Z0-9]+)\s*:? ?([+-]\d+)\s*備註:? ?(.+)/
 		);// 司機
 		const isdriverReverse = event.message.text.includes('預約日設定'); // 司機
+		const isPassengerReverse = event.message.text.includes('選擇預約日'); // 乘客
 
 		// 是否為乘客判斷有無綁定司機ID
 		const [userData] = await executeSQL(
@@ -1008,8 +1009,8 @@ async function handleEvent(event) {
 			if (bindDriverMatch) {
 				await bindDriverId(profile, event); // 綁定司機 ID 特別處理
 			}
-			if (isdriverReverse) {
-				await pickDriverReverse(profile, event); // 預約日設定
+			if (isPassengerReverse) {
+				await pickDriverReverse(profile, event); // 選擇預約日
 			}
 		} else if ((FareCountCommandsMatch || isdriverReverse) && userLineType === '司機') {
 			if (FareCountCommandsMatch) {
