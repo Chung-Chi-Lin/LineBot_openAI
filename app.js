@@ -76,10 +76,6 @@ const COMMANDS_MAP = {
 			function: bindDriverId,
 			remark: '綁定司機後方可計算日後車費 (輸入範例> 綁定司機:司機ID)',
 		},
-		司機預約表: {
-			function: pickDriverReverse,
-			remark: '點選網址連結 Google 預約乘車時間，請於上方查看司機規定之預約方式 (輸入範例> 司機預約表)',
-		},
 		選擇預約日: {
 			function: pickDriverReverse,
 			remark: '預約司機開車時間，請務必輸入區間及備註，如僅有一天區間都設定同日期。\n\n(複製範例1> 選擇預約日: 2023-10-03~2023-10-28:搭乘 備註:不含國定假日及10/3、10/5只搭乘晚上)\n\n(複製範例2> 選擇預約日: 2023-10-10~2023-10-15:不搭 備註:出國)',
@@ -476,7 +472,7 @@ async function pickDriverReverse(profile, event) {
 				endDate,
 			}
 	);
-
+	console.log("driveDaysData", driveDaysData)
 	// 比對並儲存資料
 	if (driveDaysData[0].length === 0) {
 		createResponse('text', '司機在該時段沒有開放預約。');
@@ -567,89 +563,6 @@ async function pickDriverReverse(profile, event) {
 
 	createResponse('text', `${profile.displayName}，${responseMessage}`);
 }
-
-// async function pickDriverReverse(profile, event) {
-// 	// 解析用戶輸入
-// 	const inputPattern = /選擇預約日:(\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2}):(搭乘|不搭) 備註:(.+)/;
-// 	const inputMatch = event.message.text.match(inputPattern);
-//
-// 	if (!inputMatch) {
-// 		createResponse('text', `${profile.displayName}，輸入格式不正確。`);
-// 		return;
-// 	}
-//
-// 	const startDate = inputMatch[1];
-// 	const endDate = inputMatch[2];
-// 	const reverseType = inputMatch[3] === '搭乘' ? 1 : 0;
-// 	const note = inputMatch[4];
-//
-// 	// 1. 驗證日期與乘客數量是否合法，不接受過去時間
-// 	const currentDateTime = new Date();
-// 	const startDateTime = new Date(startDate);
-// 	const endDateTime = new Date(endDate);
-// 	const currentYear = currentDateTime.getFullYear();
-// 	const currentMonth = currentDateTime.getMonth();
-//
-// 	if (endDateTime < startDateTime || (startDateTime.getFullYear() < currentYear ||
-// 			(startDateTime.getFullYear() === currentYear && startDateTime.getMonth() < currentMonth))) {
-// 		createResponse('text', `${profile.displayName}，"勿跨年月份" 以及 "結束日需大於起始日"。`);
-// 		return;
-// 	}
-//
-// 	// 獲取司機資訊
-// 	const userData = await executeSQL(
-// 			'SELECT line_user_driver FROM users WHERE line_user_id = @p1',
-// 			{ p1: profile.userId }
-// 	);
-//
-// 	if (userData[0].length === 0) {
-// 		createResponse('text', '找不到對應的司機資訊。');
-// 		return;
-// 	}
-//
-// 	const driverId = userData[0].line_user_driver;
-//
-// 	// 取得司機的開車預約信息
-// 	const driveDaysData = await executeSQL(
-// 			`SELECT * FROM driver_dates WHERE line_user_driver = @driverId
-//      AND (start_date <= @endDate AND end_date >= @startDate)`,
-// 			{
-// 				driverId,
-// 				startDate,
-// 				endDate,
-// 			}
-// 	);
-//
-// 	// 比對並儲存資料
-// 	if (driveDaysData[0].length === 0) {
-// 		createResponse('text', '司機在該時段沒有開放預約。');
-// 		return;
-// 	}
-//
-// 	// 確認預約日期是否在司機開放的時間內
-// 	for (const driveDay of driveDaysData[0]) {
-// 		if (driveDay.reverse_type === 1 && reverseType === 1 && driveDay.start_date <= startDate && driveDay.end_date >= endDate) {
-// 			// 儲存乘客的預約信息
-// 			await executeSQL(
-// 					`INSERT INTO passenger_dates (line_user_id, start_date, end_date, reverse_type, note)
-//          VALUES (@userId, @startDate, @endDate, @reverseType, @note)`,
-// 					{
-// 						userId: profile.userId,
-// 						startDate,
-// 						endDate,
-// 						reverseType: reverseType,
-// 						note,
-// 					}
-// 			);
-//
-// 			createResponse('text', `${profile.displayName}，您的預約已成功儲存。`);
-// 			return;
-// 		}
-// 	}
-//
-// 	// 如果所有檢查都未通過，則提供錯誤信息
-// 	createResponse('text', `${profile.displayName}，您選擇的時段與司機的開放時段不符。`);
-// }
 
 // ============= 司機對應函式 =============
 // 司機-顯示司機的乘客車費計算表
