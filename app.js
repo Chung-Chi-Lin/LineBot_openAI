@@ -80,6 +80,10 @@ const COMMANDS_MAP = {
 			function: pickDriverReverse,
 			remark: '點選網址連結 Google 預約乘車時間，請於上方查看司機規定之預約方式 (輸入範例> 司機預約表)',
 		},
+		選擇預約日: {
+			function: pickDriverReverse,
+			remark: '預約司機開車時間，請務必輸入區間及備註，如僅有一天區間都設定同日期。\n\n(複製範例1> 選擇預約日: 2023-10-03~2023-10-28:搭乘 備註:不含國定假日及10/3、10/5只搭乘晚上)\n\n(複製範例2> 選擇預約日: 2023-10-10~2023-10-15:不搭 備註:出國)',
+		},
 		開車日查詢: {
 			function: searchDriveDay,
 			remark: '查看司機發車日或不開車日 (輸入範例> 開車日查詢)',
@@ -106,7 +110,7 @@ const COMMANDS_MAP = {
 			remark: '取得名下所有乘客收取費用加總 (輸入範例> 車資收入)',
 		},
 		預約日設定: {
-			function: openDriverReverse,
+			function: setDriverReverse,
 			remark: '查看先前預約以及設置開放預約乘客時間，乘客端可以搜尋到您開放的日期，請務必輸入區間及備註，如僅有一天區間都設定同日期。\n\n(複製範例1> 預約日設定: 2023-10-03~2023-10-28:開車 備註:不含國定假日 乘客數量:3)\n\n(複製範例2> 預約日設定: 2023-10-10~2023-10-15:不開車 備註:出國)',
 		},
 		開車日查詢: {
@@ -261,7 +265,7 @@ async function searchDriveDay(profile, event, userLineType) {
 			}
 	);
 
-	let message = `${profile.displayName}，您目前綁定的司機開車資訊如下:\n\n`;
+	let message = `${profile.displayName}，您目前${userLineType === '司機' ? '設置的開車' : '綁定的司機開車'}資訊如下:\n\n`;
 	let lastMonth = null; // 用於追蹤上一條記錄的月份
 
 	if (driveDaysData[0].length === 0) {
@@ -278,7 +282,7 @@ async function searchDriveDay(profile, event, userLineType) {
 				if (lastMonth !== null) {
 					message += '\n'; // 在上一個月份後添加換行
 				}
-				message += `${startYear}年${startMonth}月份\n`;
+				message += `${startYear}年${startMonth}月份：\n`;
 			}
 
 			const type = day.reverse_type === 1 ? '開車' : '不開車';
@@ -286,13 +290,15 @@ async function searchDriveDay(profile, event, userLineType) {
 			const endDateStr = startMonth === endDate.getMonth() + 1 ? `${endDate.getDate()}日` : `${endDate.getMonth() + 1}月${endDate.getDate()}日`;
 			const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
 			const note = day.note || '無備註';
-			const limitStr = day.reverse_type === 1 ? ` 乘客數尚餘:${day.limit}位` : '';
+			const limitStr = day.reverse_type === 1 ? `乘客數尚餘:${day.limit}位` : '';
 
-			message += `${type}> 日期:${dateRange} 備註:${note}${limitStr}\n`;
+			message += `${type}> 日期:${dateRange}，備註:${note}，${limitStr}\n`;
 			lastMonth = startMonth; // 更新追蹤的月份
 		});
 	}
-
+	if (userLineType === '乘客') {
+		message += `\n\n 如需搭乘請輸入:\n\n(複製範例1> 選擇預約日: 2023-10-03~2023-10-28:搭乘 備註:不含國定假日及10/3、10/5只搭乘晚上)\n\n(複製範例2> 選擇預約日: 2023-10-10~2023-10-15:不搭 備註:出國)`;
+	}
 	createResponse('text', message);
 }
 
@@ -419,88 +425,231 @@ async function bindDriverId(profile, event) {
 }
 
 // 乘客-預約司機乘車的操作
-async function pickDriverReverse(profile) {
-	// 1. 從 users 表找到 line_user_driver 所有符合 profile.userId 的資料
-	const passengers = await executeSQL(
-			'SELECT line_user_id, line_user_name FROM users WHERE line_user_driver = @p1',
-			{p1: profile.userId}
-	);
+async function pickDriverReverse(profile, event) {
+	// 解析用戶輸入
+	const inputPattern = /選擇預約日:(\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2}):(搭乘|不搭) 備註:(.+)/;
+	const inputMatch = event.message.text.match(inputPattern);
 
-	// 檢查是否有資料
-	if (passengers[0].length === 0) {
-		createResponse(
-				'text',
-				`${profile.displayName} ，目前名下無其他乘客。`
-		);
+	if (!inputMatch) {
+		createResponse('text', `${profile.displayName}，輸入格式不正確。`);
 		return;
 	}
 
-	// 存儲每個乘客的車費細節
-	const passengerDetails = [];
+	const startDate = inputMatch[1];
+	const endDate = inputMatch[2];
+	const reverseType = inputMatch[3] === '搭乘' ? 1 : 0;
+	const note = inputMatch[4];
 
-	let totalIncome = 0; // 總共收入
+	// 1. 驗證日期與乘客數量是否合法，不接受過去時間
+	const currentDateTime = new Date();
+	const startDateTime = new Date(startDate);
+	const endDateTime = new Date(endDate);
+	const currentYear = currentDateTime.getFullYear();
+	const currentMonth = currentDateTime.getMonth();
 
-	for (const passenger of passengers[0]) {
-		// 2. 根據 line_user_id 去 fare 表格中找對應當月的資料
-		const fares = await executeSQL(
-				'SELECT user_fare, update_time FROM fare WHERE line_user_id = @p1 AND MONTH(update_time) = MONTH(GETDATE()) AND YEAR(update_time) = YEAR(GETDATE())',
-				{p1: passenger.line_user_id}
-		);
-
-		let fareAmount = 0; // 乘客的車費
-
-		// 檢查是否有資料
-		if (fares[0].length > 0) {
-			fareAmount = fares[0][0].user_fare;
-			totalIncome += fareAmount;
-		}
-
-		// 3. 根據 line_user_id 去 fare_count 表格中找對應的資料
-		const fareCounts = await executeSQL(
-				'SELECT user_fare_count FROM fare_count WHERE line_user_id = @p1 AND MONTH(update_time) = MONTH(GETDATE()) AND YEAR(update_time) = YEAR(GETDATE())',
-				{p1: passenger.line_user_id}
-		);
-
-		let fareCountAmount = 0; // 乘客的 fare_count 總和
-		for (const fareCount of fareCounts[0]) {
-			fareCountAmount += fareCount.user_fare_count;
-		}
-
-		if (fares.length === 0 && fareCounts.length === 0) {
-			passengerDetails.push({
-				name: passenger.line_user_name,
-				noRecord: true
-			});
-		} else {
-			passengerDetails.push({
-				name: passenger.line_user_name,
-				totalFare: fareAmount,
-				fareCount: fareCountAmount
-			});
-		}
+	if (endDateTime < startDateTime || (startDateTime.getFullYear() < currentYear ||
+			(startDateTime.getFullYear() === currentYear && startDateTime.getMonth() < currentMonth))) {
+		createResponse('text', `${profile.displayName}，"勿跨年月份" 以及 "結束日需大於起始日"。`);
+		return;
 	}
 
-	// 根據乘客的車費細節生成回應消息
-	let message = `10月份車資\n\n`;
+	// 獲取司機資訊
+	const userData = await executeSQL(
+			'SELECT line_user_driver FROM users WHERE line_user_id = @p1',
+			{p1: profile.userId}
+	);
 
-	for (const detail of passengerDetails) {
-		if (detail.noRecord) {
-			message += `乘客: ${detail.name}，此月份尚無匯款紀錄\n`;
-		} else {
-			message += `乘客: ${detail.name}，匯款車資為: ${detail.totalFare}`;
-			if (detail.fareCount > 0) {
-				message += `，下月需多收NT$${detail.fareCount}`;
-			} else if (detail.fareCount < 0) {
-				message += `，下月車資扣除NT$${Math.abs(detail.fareCount)}`;
+	if (userData[0].length === 0) {
+		createResponse('text', '找不到對應的司機資訊。');
+		return;
+	}
+
+	const driverId = userData[0].line_user_driver;
+
+	// 取得司機的開車預約信息
+	const driveDaysData = await executeSQL(
+			`SELECT * FROM driver_dates WHERE line_user_driver = @driverId 
+     AND (start_date <= @endDate AND end_date >= @startDate)`,
+			{
+				driverId,
+				startDate,
+				endDate,
 			}
-			message += `\n`;
-		}
+	);
+
+	// 比對並儲存資料
+	if (driveDaysData[0].length === 0) {
+		createResponse('text', '司機在該時段沒有開放預約。');
+		return;
 	}
 
-	message += `<總共收入: NT$${totalIncome}>`;
+	let sqlAction = 'INSERT INTO';
+	let sqlSetPart = '(line_user_id, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)';
+	let responseMessage = '已設定好預約表。';
+	const reverseTypeValue = reverseType === '搭乘' ? 1 : 0;
+	const sqlDate = reverseTypeValue === 1 ? 'MONTH(start_date) = MONTH(@startDate) AND YEAR(end_date) = YEAR(@endDate)' : 'NOT (start_date > @endDate OR end_date < @startDate)';
 
-	createResponse('text', message);
+	// 確認預約日期是否在司機開放的時間內
+	for (const driveDay of driveDaysData[0]) {
+		if (driveDay.reverse_type === 1 && reverseType === 1 && driveDay.start_date <= startDate && driveDay.end_date >= endDate) {
+			// 儲存乘客的預約信息
+			// 根據開車、不開車 SQL 查詢
+			const overlapCheck = await executeSQL(
+					`SELECT * FROM passenger_dates 
+  							 WHERE line_user_id = @userId 
+   								AND reverse_type = @reverseTypeValue
+   								AND ${sqlDate}`,
+					{
+						userId: profile.userId,
+						reverseTypeValue,
+						startDate,
+						endDate,
+					}
+			);
+
+			// 開車儲存處理
+			if (reverseTypeValue === 1) {
+				if (overlapCheck[0].length <= 0) {
+					// 沒有重疊，進行插入操作
+					sqlAction = 'INSERT INTO';
+					sqlSetPart = '(line_user_id, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)';
+					responseMessage = '已設定好預約表。';
+				} else {
+					// 存在重疊，進行更新操作
+					sqlAction = 'UPDATE';
+					sqlSetPart = 'SET start_date = @startDate, end_date = @endDate, reverse_type = @reverseType, note = @note WHERE line_user_id = @userId AND auto_id = @recordId';
+					responseMessage = '已覆蓋原月份預約時間。';
+				}
+			}
+
+			if (reverseTypeValue === 0) {
+				if (overlapCheck[0].length <= 0) {
+					// 沒有重疊，進行插入操作
+					sqlAction = 'INSERT INTO';
+					sqlSetPart = '(line_user_id, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)';
+					responseMessage = '已設定好預約表。';
+				} else if (overlapCheck[0].length === 1) {
+					// 存在1筆重疊，進行更新操作
+					sqlAction = 'UPDATE';
+					sqlSetPart = 'SET start_date = @startDate, end_date = @endDate, reverse_type = @reverseType, note = @note WHERE line_user_id = @userId AND auto_id = @recordId';
+					responseMessage = '已覆蓋原月份預約時間。';
+				} else {
+					// 需要處理會有多筆，刪除所有重疊並新增一筆
+					const idsToDelete = overlapCheck[0].map(record => record.auto_id).join(',');
+					await executeSQL(
+							`DELETE FROM passenger_dates WHERE auto_id IN(${idsToDelete})`,
+							{userId: profile.userId}
+					);
+					// 刪除之後，執行插入操作
+					sqlAction = 'INSERT INTO';
+					sqlSetPart = '(line_user_id, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)';
+					responseMessage = '已將多筆重疊不開車時段覆蓋為新預約時間。';
+				}
+			}
+		} else {
+			responseMessage = '您選擇的時段與司機的開放時段不符。';
+		}
+	}
+	const recordId = overlapCheck && overlapCheck[0] && overlapCheck[0].length > 0 ? overlapCheck[0][0].auto_id : null;
+
+	// 執行 SQL
+	await executeSQL(
+			`${sqlAction} driver_dates ${sqlSetPart}`,
+			{
+				userId: profile.userId,
+				startDate: startDate,
+				endDate: endDate,
+				reverseType: reverseTypeValue,
+				note: note || null,
+				recordId: recordId
+			}
+	);
+
+	createResponse('text', `${profile.displayName}，${responseMessage}`);
 }
+
+// async function pickDriverReverse(profile, event) {
+// 	// 解析用戶輸入
+// 	const inputPattern = /選擇預約日:(\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2}):(搭乘|不搭) 備註:(.+)/;
+// 	const inputMatch = event.message.text.match(inputPattern);
+//
+// 	if (!inputMatch) {
+// 		createResponse('text', `${profile.displayName}，輸入格式不正確。`);
+// 		return;
+// 	}
+//
+// 	const startDate = inputMatch[1];
+// 	const endDate = inputMatch[2];
+// 	const reverseType = inputMatch[3] === '搭乘' ? 1 : 0;
+// 	const note = inputMatch[4];
+//
+// 	// 1. 驗證日期與乘客數量是否合法，不接受過去時間
+// 	const currentDateTime = new Date();
+// 	const startDateTime = new Date(startDate);
+// 	const endDateTime = new Date(endDate);
+// 	const currentYear = currentDateTime.getFullYear();
+// 	const currentMonth = currentDateTime.getMonth();
+//
+// 	if (endDateTime < startDateTime || (startDateTime.getFullYear() < currentYear ||
+// 			(startDateTime.getFullYear() === currentYear && startDateTime.getMonth() < currentMonth))) {
+// 		createResponse('text', `${profile.displayName}，"勿跨年月份" 以及 "結束日需大於起始日"。`);
+// 		return;
+// 	}
+//
+// 	// 獲取司機資訊
+// 	const userData = await executeSQL(
+// 			'SELECT line_user_driver FROM users WHERE line_user_id = @p1',
+// 			{ p1: profile.userId }
+// 	);
+//
+// 	if (userData[0].length === 0) {
+// 		createResponse('text', '找不到對應的司機資訊。');
+// 		return;
+// 	}
+//
+// 	const driverId = userData[0].line_user_driver;
+//
+// 	// 取得司機的開車預約信息
+// 	const driveDaysData = await executeSQL(
+// 			`SELECT * FROM driver_dates WHERE line_user_driver = @driverId
+//      AND (start_date <= @endDate AND end_date >= @startDate)`,
+// 			{
+// 				driverId,
+// 				startDate,
+// 				endDate,
+// 			}
+// 	);
+//
+// 	// 比對並儲存資料
+// 	if (driveDaysData[0].length === 0) {
+// 		createResponse('text', '司機在該時段沒有開放預約。');
+// 		return;
+// 	}
+//
+// 	// 確認預約日期是否在司機開放的時間內
+// 	for (const driveDay of driveDaysData[0]) {
+// 		if (driveDay.reverse_type === 1 && reverseType === 1 && driveDay.start_date <= startDate && driveDay.end_date >= endDate) {
+// 			// 儲存乘客的預約信息
+// 			await executeSQL(
+// 					`INSERT INTO passenger_dates (line_user_id, start_date, end_date, reverse_type, note)
+//          VALUES (@userId, @startDate, @endDate, @reverseType, @note)`,
+// 					{
+// 						userId: profile.userId,
+// 						startDate,
+// 						endDate,
+// 						reverseType: reverseType,
+// 						note,
+// 					}
+// 			);
+//
+// 			createResponse('text', `${profile.displayName}，您的預約已成功儲存。`);
+// 			return;
+// 		}
+// 	}
+//
+// 	// 如果所有檢查都未通過，則提供錯誤信息
+// 	createResponse('text', `${profile.displayName}，您選擇的時段與司機的開放時段不符。`);
+// }
 
 // ============= 司機對應函式 =============
 // 司機-顯示司機的乘客車費計算表
@@ -687,7 +836,7 @@ async function totalFareCount(profile) {
 }
 
 // 司機-開放預約時間
-async function openDriverReverse(profile, event) {
+async function setDriverReverse(profile, event) {
 	// 正則表達式使乘客數量可選
 	const inputPattern = /預約日設定:(\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2}):(開車|不開車) 備註:([^乘客數量:]*)\s*(?:乘客數量:(\d+))?/;
 	const inputMatch = event.message.text.match(inputPattern);
@@ -782,7 +931,7 @@ async function openDriverReverse(profile, event) {
 
 	const recordId = overlapCheck && overlapCheck[0] && overlapCheck[0].length > 0 ? overlapCheck[0][0].auto_id : null;
 
-  // 執行 SQL
+	// 執行 SQL
 	await executeSQL(
 			`${sqlAction} driver_dates ${sqlSetPart}`,
 			{
@@ -859,12 +1008,15 @@ async function handleEvent(event) {
 			if (bindDriverMatch) {
 				await bindDriverId(profile, event); // 綁定司機 ID 特別處理
 			}
+			if (isdriverReverse) {
+				await pickDriverReverse(profile, event); // 預約日設定
+			}
 		} else if ((FareCountCommandsMatch || isdriverReverse) && userLineType === '司機') {
 			if (FareCountCommandsMatch) {
 				await passengerFareCount(profile, event); // 車費匯款特別處理
 			}
 			if (isdriverReverse) {
-				await openDriverReverse(profile, event); // 預約日設定
+				await setDriverReverse(profile, event); // 預約日設定
 			}
 		} else {
 			if (userLineType) {
