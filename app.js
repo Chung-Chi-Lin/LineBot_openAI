@@ -265,7 +265,7 @@ async function searchDriveDay(profile, event, userLineType) {
 	let lastMonth = null; // 用於追蹤上一條記錄的月份
 
 	if (driveDaysData[0].length === 0) {
-		message += '無預約資訊';
+		message += '尚無登記預約資訊';
 	} else {
 		driveDaysData[0].forEach((day, index) => {
 			const startDate = new Date(day.start_date);
@@ -461,17 +461,26 @@ async function pickDriverReverse(profile, event) {
 	}
 
 	const driverId = userData[0].line_user_driver;
+	const currentDate = new Date();
+	const currentMonthCheck = currentDate.getMonth() + 1;
+	const currentYearCheck = currentDate.getFullYear();
+	const nextMonth = (currentMonth % 12) + 1;
+	const nextYear = currentMonth === 12 ? currentYear + 1 : currentYear;
 
-	// 取得司機的開車預約信息
+	// 查詢當前及下個月的預約信息
 	const driveDaysData = await executeSQL(
 			`SELECT * FROM driver_dates WHERE line_user_driver = @driverId 
-     AND (start_date <= @endDate AND end_date >= @startDate)`,
+     AND ((MONTH(start_date) = @currentMonthCheck AND YEAR(start_date) = @currentYearCheck) 
+     OR (MONTH(start_date) = @nextMonth AND YEAR(start_date) = @nextYear))`,
 			{
 				driverId,
-				startDate,
-				endDate,
+				currentMonthCheck,
+				currentYearCheck,
+				nextMonth,
+				nextYear
 			}
 	);
+
 	console.log("driveDaysData", driveDaysData)
 	// 比對並儲存資料
 	if (driveDaysData[0].length === 0) {
