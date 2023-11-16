@@ -459,15 +459,14 @@ async function pickDriverReverse(profile, event) {
 		createResponse('text', '找不到對應的司機資訊。');
 		return;
 	}
-	console.log("userData1", userData)
-	console.log("userData1", userData[0][0].line_user_driver)
+
 	const driverId = userData[0][0].line_user_driver;
 	const currentDate = new Date();
 	const currentMonthCheck = currentDate.getMonth() + 1;
 	const currentYearCheck = currentDate.getFullYear();
 	const nextMonth = (currentMonth % 12) + 1;
 	const nextYear = currentMonthCheck === 12 ? currentYearCheck + 1 : currentYearCheck;
-	console.log(driverId, currentMonthCheck, currentYearCheck, nextMonth, nextYear);
+
 	// 查詢當前及下個月的預約信息
 	const driveDaysData = await executeSQL(
 			`SELECT * FROM driver_dates WHERE line_user_driver = @driverId 
@@ -482,10 +481,25 @@ async function pickDriverReverse(profile, event) {
 			}
 	);
 
-	console.log("driveDaysData", driveDaysData)
 	// 比對並儲存資料
 	if (driveDaysData[0].length === 0) {
 		createResponse('text', '司機在該時段沒有開放預約。');
+		return;
+	}
+
+	let isDateRangeValid = false;
+	for (const driveDay of driveDaysData[0]) {
+		if (reverseType === driveDay.reverse_type &&
+				new Date(driveDay.start_date) <= startDateTime &&
+				new Date(driveDay.end_date) >= endDateTime) {
+			isDateRangeValid = true;
+			break;
+		}
+	}
+	console.log("driveDaysData", driveDaysData[0])
+	console.log("isDateRangeValid", isDateRangeValid)
+	if (!isDateRangeValid) {
+		createResponse('text', `${profile.displayName}，您選擇的時段與司機的開放時段不符。`);
 		return;
 	}
 
@@ -495,67 +509,61 @@ async function pickDriverReverse(profile, event) {
 	const reverseTypeValue = reverseType === '搭乘' ? 1 : 0;
 	const sqlDate = reverseTypeValue === 1 ? 'MONTH(start_date) = MONTH(@startDate) AND YEAR(end_date) = YEAR(@endDate)' : 'NOT (start_date > @endDate OR end_date < @startDate)';
 
-	// 確認預約日期是否在司機開放的時間內
-	for (const driveDay of driveDaysData[0]) {
-		if (driveDay.reverse_type === 1 && reverseType === 1 && driveDay.start_date <= startDate && driveDay.end_date >= endDate) {
-			// 儲存乘客的預約信息
-			// 根據開車、不開車 SQL 查詢
-			const overlapCheck = await executeSQL(
-					`SELECT * FROM passenger_dates 
+	// 根據開車、不開車 SQL 查詢
+	const overlapCheck = await executeSQL(
+			`SELECT * FROM passenger_dates 
   							 WHERE line_user_id = @userId 
    								AND reverse_type = @reverseTypeValue
    								AND ${sqlDate}`,
-					{
-						userId: profile.userId,
-						reverseTypeValue,
-						startDate,
-						endDate,
-					}
-			);
-
-			// 開車儲存處理
-			if (reverseTypeValue === 1) {
-				if (overlapCheck[0].length <= 0) {
-					// 沒有重疊，進行插入操作
-					sqlAction = 'INSERT INTO';
-					sqlSetPart = '(line_user_id, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)';
-					responseMessage = '已設定好預約表。';
-				} else {
-					// 存在重疊，進行更新操作
-					sqlAction = 'UPDATE';
-					sqlSetPart = 'SET start_date = @startDate, end_date = @endDate, reverse_type = @reverseType, note = @note WHERE line_user_id = @userId AND auto_id = @recordId';
-					responseMessage = '已覆蓋原月份預約時間。';
-				}
+			{
+				userId: profile.userId,
+				reverseTypeValue,
+				startDate,
+				endDate,
 			}
-
-			if (reverseTypeValue === 0) {
-				if (overlapCheck[0].length <= 0) {
-					// 沒有重疊，進行插入操作
-					sqlAction = 'INSERT INTO';
-					sqlSetPart = '(line_user_id, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)';
-					responseMessage = '已設定好預約表。';
-				} else if (overlapCheck[0].length === 1) {
-					// 存在1筆重疊，進行更新操作
-					sqlAction = 'UPDATE';
-					sqlSetPart = 'SET start_date = @startDate, end_date = @endDate, reverse_type = @reverseType, note = @note WHERE line_user_id = @userId AND auto_id = @recordId';
-					responseMessage = '已覆蓋原月份預約時間。';
-				} else {
-					// 需要處理會有多筆，刪除所有重疊並新增一筆
-					const idsToDelete = overlapCheck[0].map(record => record.auto_id).join(',');
-					await executeSQL(
-							`DELETE FROM passenger_dates WHERE auto_id IN(${idsToDelete})`,
-							{userId: profile.userId}
-					);
-					// 刪除之後，執行插入操作
-					sqlAction = 'INSERT INTO';
-					sqlSetPart = '(line_user_id, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)';
-					responseMessage = '已將多筆重疊不開車時段覆蓋為新預約時間。';
-				}
-			}
+	);
+	console.log(overlapCheck);
+	// 儲存乘客的預約信息
+	// 開車儲存處理
+	if (reverseTypeValue === 1) {
+		if (overlapCheck[0].length <= 0) {
+			// 沒有重疊，進行插入操作
+			sqlAction = 'INSERT INTO';
+			sqlSetPart = '(line_user_id, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)';
+			responseMessage = '已設定好預約表。';
 		} else {
-			responseMessage = '您選擇的時段與司機的開放時段不符。';
+			// 存在重疊，進行更新操作
+			sqlAction = 'UPDATE';
+			sqlSetPart = 'SET start_date = @startDate, end_date = @endDate, reverse_type = @reverseType, note = @note WHERE line_user_id = @userId AND auto_id = @recordId';
+			responseMessage = '已覆蓋原月份預約時間。';
 		}
 	}
+
+	if (reverseTypeValue === 0) {
+		if (overlapCheck[0].length <= 0) {
+			// 沒有重疊，進行插入操作
+			sqlAction = 'INSERT INTO';
+			sqlSetPart = '(line_user_id, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)';
+			responseMessage = '已設定好預約表。';
+		} else if (overlapCheck[0].length === 1) {
+			// 存在1筆重疊，進行更新操作
+			sqlAction = 'UPDATE';
+			sqlSetPart = 'SET start_date = @startDate, end_date = @endDate, reverse_type = @reverseType, note = @note WHERE line_user_id = @userId AND auto_id = @recordId';
+			responseMessage = '已覆蓋原月份預約時間。';
+		} else {
+			// 需要處理會有多筆，刪除所有重疊並新增一筆
+			const idsToDelete = overlapCheck[0].map(record => record.auto_id).join(',');
+			await executeSQL(
+					`DELETE FROM passenger_dates WHERE auto_id IN(${idsToDelete})`,
+					{userId: profile.userId}
+			);
+			// 刪除之後，執行插入操作
+			sqlAction = 'INSERT INTO';
+			sqlSetPart = '(line_user_id, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)';
+			responseMessage = '已將多筆重疊不開車時段覆蓋為新預約時間。';
+		}
+	}
+
 	const recordId = overlapCheck && overlapCheck[0] && overlapCheck[0].length > 0 ? overlapCheck[0][0].auto_id : null;
 
 	// 執行 SQL
@@ -801,9 +809,9 @@ async function setDriverReverse(profile, event) {
 	// 根據開車、不開車 SQL 查詢
 	const overlapCheck = await executeSQL(
 			`SELECT * FROM driver_dates 
-   WHERE line_user_driver = @userId 
-   AND reverse_type = @reverseTypeValue
-   AND ${sqlDate}`,
+									 WHERE line_user_driver = @userId 
+									 	AND reverse_type = @reverseTypeValue
+									 	AND ${sqlDate}`,
 			{
 				userId: profile.userId,
 				reverseTypeValue,
