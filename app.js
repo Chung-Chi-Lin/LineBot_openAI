@@ -294,48 +294,6 @@ async function searchDriveDay(profile, event, userLineType) {
 	}
 	if (userLineType === '乘客') {
 		message += `\n\n 如需搭乘請輸入:\n\n(複製範例1> 選擇預約日: 2023-10-03~2023-10-28:搭乘 備註:不含國定假日及10/3、10/5只搭乘晚上)\n\n(複製範例2> 選擇預約日: 2023-10-10~2023-10-15:不搭 備註:出國)`;
-		// 查詢乘客預約資訊的邏輯
-		const passengerDatesData = await executeSQL(
-				`SELECT * FROM passenger_dates WHERE line_user_id = @userId
-             AND ((MONTH(start_date) = @currentMonth AND YEAR(start_date) = @currentYear) 
-             OR (MONTH(start_date) = @nextMonth AND YEAR(start_date) = @nextYear))`,
-				{
-					userId: profile.userId,
-					currentMonth,
-					currentYear,
-					nextMonth,
-					nextYear
-				}
-		);
-
-		message += `\n\n${profile.displayName}，您的搭乘資訊如下:\n`;
-		let lastMonth = null;
-		console.log(passengerDatesData[0]);
-		if (passengerDatesData[0].length === 0) {
-			return createResponse('text', `${profile.displayName}，近兩個月無登記搭乘紀錄`);
-		} else {
-			passengerDatesData[0].forEach((day) => {
-				const startDate = new Date(day.start_date);
-				const endDate = new Date(day.end_date);
-				const startMonth = startDate.getMonth() + 1;
-				const startYear = startDate.getFullYear();
-
-				if (lastMonth !== startMonth) {
-					if (lastMonth !== null) {
-						message += '\n';
-					}
-					message += `${startYear}年${startMonth}月份：\n`;
-				}
-
-				const type = day.reverse_type === 1 ? '搭車' : '不搭';
-				const startDateStr = `${startMonth}月${startDate.getDate()}日`;
-				const endDateStr = startMonth === endDate.getMonth() + 1 ? `${endDate.getDate()}日` : `${endDate.getMonth() + 1}月${endDate.getDate()}日`;
-				const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
-				const note = day.note || '無備註';
-
-				message += `${type}> 日期:${dateRange}，備註:${note}\n`;
-				lastMonth = startMonth;
-			});
 	}
 	createResponse('text', message);
 };
@@ -535,18 +493,21 @@ async function pickDriverReverse(profile, event) {
 		const driveDayStart = new Date(driveDay.start_date);
 		const driveDayEnd = new Date(driveDay.end_date);
 
-		// 檢查乘客選擇的搭車時間是否與司機的不開車時間有衝突
-		if (reverseType === 1 && driveDay.reverse_type === 0 &&
+		// 檢查乘客選擇的搭車時間是否在司機開放的時間內
+		if (reverseType === 1 && driveDay.reverse_type === 1) {
+			if (startDateTime >= driveDayStart && endDateTime <= driveDayEnd) {
+				if (driveDay.limit > 0) {
+					isDateRangeValid = true;
+					break; // 找到合適的時間且有乘載空間
+				} else {
+					createResponse('text', `${profile.displayName}，目前月份司機的乘載數已達上限或該日期無開車資訊，如需搭乘請聯絡司機。`);
+					return; // 無乘載空間，提早終止函式
+				}
+			}
+		} else if (reverseType === 1 && driveDay.reverse_type === 0 &&
 				startDateTime <= driveDayEnd && endDateTime >= driveDayStart) {
 			conflictMessage = `${profile.displayName}，您選擇搭乘的時間與司機不開車時間有衝突，仍會記錄但請自行注意不開車時間(可輸入> 開車日查詢)。`;
 			isDateRangeValid = false;
-			break;
-		}
-
-		// 檢查乘客選擇的搭車時間是否在司機開放的時間內
-		if (reverseType === 1 && driveDay.reverse_type === 1 &&
-				startDateTime >= driveDayStart && endDateTime <= driveDayEnd) {
-			isDateRangeValid = true;
 			break;
 		}
 	}
@@ -556,6 +517,7 @@ async function pickDriverReverse(profile, event) {
 	}
 	if (!isDateRangeValid) {
 		createResponse('text', `${profile.displayName}，您選擇的時段與司機的開放時段不符。`);
+		return;
 	}
 
 	let sqlAction = 'INSERT INTO';
@@ -577,8 +539,6 @@ async function pickDriverReverse(profile, event) {
 			}
 	);
 
-
-	// 儲存乘客的預約信息
 	// 開車儲存處理
 	if (reverseType === 1) {
 		if (overlapCheck[0].length <= 0) {
