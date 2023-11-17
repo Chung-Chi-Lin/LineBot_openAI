@@ -464,7 +464,7 @@ async function pickDriverReverse(profile, event) {
 	const currentDate = new Date();
 	const currentMonthCheck = currentDate.getMonth() + 1;
 	const currentYearCheck = currentDate.getFullYear();
-	const nextMonth = (currentMonth % 12) + 1;
+	const nextMonth = (currentMonthCheck % 12) + 1;
 	const nextYear = currentMonthCheck === 12 ? currentYearCheck + 1 : currentYearCheck;
 
 	// 查詢當前及下個月的預約信息
@@ -480,7 +480,8 @@ async function pickDriverReverse(profile, event) {
 				nextYear
 			}
 	);
-
+	console.log()
+	console.log("driveDaysData[0]", driveDaysData[0])
 	// 比對並儲存資料
 	if (driveDaysData[0].length === 0) {
 		createResponse('text', '司機在該時段沒有開放預約。');
