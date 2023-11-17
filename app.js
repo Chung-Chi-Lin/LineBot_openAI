@@ -505,18 +505,17 @@ async function pickDriverReverse(profile, event) {
 	let sqlAction = 'INSERT INTO';
 	let sqlSetPart = '(line_user_id, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)';
 	let responseMessage = '已設定好預約表。';
-	const reverseTypeValue = reverseType === '搭乘' ? 1 : 0;
-	const sqlDate = reverseTypeValue === 1 ? 'MONTH(start_date) = MONTH(@startDate) AND YEAR(end_date) = YEAR(@endDate)' : 'NOT (start_date > @endDate OR end_date < @startDate)';
+	const sqlDate = reverseType === 1 ? 'MONTH(start_date) = MONTH(@startDate) AND YEAR(end_date) = YEAR(@endDate)' : 'NOT (start_date > @endDate OR end_date < @startDate)';
 
 	// 根據開車、不開車 SQL 查詢
 	const overlapCheck = await executeSQL(
 			`SELECT * FROM passenger_dates 
   							 WHERE line_user_id = @userId 
-   								AND reverse_type = @reverseTypeValue
+   								AND reverse_type = @reverseType
    								AND ${sqlDate}`,
 			{
 				userId: profile.userId,
-				reverseTypeValue,
+				reverseType,
 				startDate,
 				endDate,
 			}
@@ -525,7 +524,7 @@ async function pickDriverReverse(profile, event) {
 
 	// 儲存乘客的預約信息
 	// 開車儲存處理
-	if (reverseTypeValue === 1) {
+	if (reverseType === 1) {
 		if (overlapCheck[0].length <= 0) {
 			// 沒有重疊，進行插入操作
 			sqlAction = 'INSERT INTO';
@@ -539,7 +538,7 @@ async function pickDriverReverse(profile, event) {
 		}
 	}
 
-	if (reverseTypeValue === 0) {
+	if (reverseType === 0) {
 		if (overlapCheck[0].length <= 0) {
 			// 沒有重疊，進行插入操作
 			sqlAction = 'INSERT INTO';
@@ -573,7 +572,7 @@ async function pickDriverReverse(profile, event) {
 				userId: profile.userId,
 				startDate: startDate,
 				endDate: endDate,
-				reverseType: reverseTypeValue,
+				reverseType,
 				note: note || null,
 				recordId: recordId
 			}
