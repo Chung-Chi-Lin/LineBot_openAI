@@ -236,7 +236,7 @@ async function searchDriveDay(profile, event, userLineType) {
 			'SELECT line_user_driver FROM users WHERE line_user_id = @p1',
 			{p1: profile.userId}
 	);
-	let driverId = userData[0].line_user_driver;
+	let driverId = userData[0][0].line_user_driver;
 	const currentDate = new Date();
 	const currentMonth = currentDate.getMonth() + 1;
 	const currentYear = currentDate.getFullYear();
@@ -512,7 +512,7 @@ async function pickDriverReverse(profile, event) {
 	const currentYearCheck = currentDate.getFullYear();
 	const nextMonth = (currentMonthCheck % 12) + 1;
 	const nextYear = currentMonthCheck === 12 ? currentYearCheck + 1 : currentYearCheck;
-
+	let passLimit = 0;
 	// 撈出司機全部查詢當前及下個月的預約信息
 	const driveDaysData = await executeSQL(
 			`SELECT * FROM driver_dates WHERE line_user_driver = @driverId 
@@ -544,6 +544,7 @@ async function pickDriverReverse(profile, event) {
 			if (startDateTime >= driveDayStart && endDateTime <= driveDayEnd) {
 				if (driveDay.limit > 0) {
 					isDateRangeValid = true;
+					passLimit =　driveDay.limit-1;
 					break; // 找到合適的時間且有乘載空間
 				} else {
 					createResponse('text', `${profile.displayName}，目前月份司機的乘載數已達上限或該日期無開車資訊，如需搭乘請聯絡司機。`);
@@ -585,13 +586,14 @@ async function pickDriverReverse(profile, event) {
 			}
 	);
 
-	// 開車儲存處理
+	// 搭車儲存處理
 	if (reverseType === 1) {
 		if (overlapCheck[0].length <= 0) {
 			// 沒有重疊，進行插入操作
 			sqlAction = 'INSERT INTO';
 			sqlSetPart = '(line_user_id, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)';
 			responseMessage = '已設定好預約表。';
+
 		} else {
 			// 存在重疊，進行更新操作
 			sqlAction = 'UPDATE';
@@ -606,6 +608,24 @@ async function pickDriverReverse(profile, event) {
 			sqlAction = 'INSERT INTO';
 			sqlSetPart = '(line_user_id, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)';
 			responseMessage = '已設定好預約表。';
+			let autoId = 0;
+			driveDaysData[0].forEach((item) => {
+				const itemStartMonth = new Date(item.start_date).getMonth() + 1;
+				const passengerStartMonth = new Date(startDate).getMonth() + 1;
+
+				if (item.reverse_type === 1 && itemStartMonth === passengerStartMonth) {
+					autoId = item.auto_id;
+				}
+			});
+
+			await executeSQL(
+					`UPDATE driver_dates SET limit = @limit WHERE line_user_driver = @driverId AND auto_id = @autoId`,
+					{
+						driverId,
+						limit: passLimit,
+						recordId: autoId
+					}
+			);
 		} else if (overlapCheck[0].length === 1) {
 			// 存在1筆重疊，進行更新操作
 			sqlAction = 'UPDATE';
