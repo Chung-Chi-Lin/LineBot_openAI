@@ -310,7 +310,7 @@ async function searchDriveDay(profile, event, userLineType) {
 				}
 		);
 
-		let message = `${profile.displayName}，您目前乘車資訊如下:\n\n`;
+		message += `${profile.displayName}，您目前乘車資訊如下:\n\n`;
 		let lastMonth = null; // 用於追蹤上一條記錄的月份
 
 		if (userDaysData[0].length === 0) {
