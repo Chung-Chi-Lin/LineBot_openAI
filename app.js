@@ -161,7 +161,6 @@ async function validateUser(profile, event) {
 // 共用-回傳訊息格式
 function createResponse(type, message) {
 	echo = {type: type, text: message};
-	console.log("step1", echo);
 }
 
 // 共用-指令格式
@@ -914,7 +913,6 @@ async function handleEvent(event) {
 				userLineType === '乘客' &&
 				!bindDriverMatch
 		) {
-			console.log(11111111111111111111111111)
 			const [result] = await executeSQL(
 					`SELECT line_user_id, line_user_name FROM users WHERE line_user_type = N'司機'`
 			);
@@ -928,10 +926,10 @@ async function handleEvent(event) {
 			// use reply API
 			return client.replyMessage(event.replyToken, echo);
 		}
-
+		console.log("1231313212", userLineType);
 		if (userFunction) {
 			await userFunction(profile, event, userLineType); // 正確指令執行對應的功能
-		} else if (userLineType === '乘客') {
+		} else if ((fareTransferMatch || bindDriverMatch || isPassengerReverse) && userLineType === '乘客') {
 			if (fareTransferMatch) {
 				await transferFare(profile, event); // 車費匯款特別處理
 			}
@@ -941,7 +939,7 @@ async function handleEvent(event) {
 			if (isPassengerReverse) {
 				await pickDriverReverse(profile, event); // 選擇預約日
 			}
-		} else if (userLineType === '司機') {
+		} else if ((FareCountCommandsMatch || isDriverReverse) && userLineType === '司機') {
 			if (FareCountCommandsMatch) {
 				await passengerFareCount(profile, event); // 車費匯款特別處理
 			}
@@ -949,7 +947,6 @@ async function handleEvent(event) {
 				await setDriverReverse(profile, event); // 預約日設定
 			}
 		} else {
-			console.log(22222222222222222222222222222222222222)
 			if (userLineType) {
 				if (event.message.text === '指令') {
 					const commandsString = getCommandsAsString(userLineType);
@@ -958,8 +955,6 @@ async function handleEvent(event) {
 							`${userLineType} ${profile.displayName} 歡迎回來，${commandsString}`
 					);
 				} else {
-					console.log(333333333333333333333333333333333333333)
-					console.log("AAAAAAAAAAAAAAAAAAAAAAAAA", echo);
 					// 組合整體訊息
 					createResponse('text', `${userLineType} ${profile.displayName} 歡迎回來，請輸入"指令"了解指令用法。`);
 				}
