@@ -126,7 +126,7 @@ async function validateUser(profile, event) {
 			'SELECT * FROM users WHERE line_user_id = @line_user_id',
 			{line_user_id: profile.userId}
 	);
-	console.log("existingUsers", existingUsers);
+
 	let type = '';
 	let user = null;
 
@@ -482,7 +482,6 @@ async function pickDriverReverse(profile, event) {
 			}
 	);
 
-	console.log("driveDaysData", driveDaysData)
 	// 比對並儲存資料
 	if (driveDaysData[0].length === 0) {
 		createResponse('text', '司機在該時段沒有開放預約。');
@@ -891,14 +890,12 @@ async function handleEvent(event) {
 	const profile = await client.getProfile(event.source.userId); // 用戶資料
 	const validationResult = await validateUser(profile, event); // 初始 ID 驗證
 	let userType = '';
-	console.log("validationResult", validationResult)
+
 	if (validationResult.type === 'existing_user') {
-		console.log(12313232132112321);
 		// 此區塊處理已存在的用戶
 		const userLineType = validationResult.user.line_user_type;
 		const inputText = event.message.text.trim(); // 移除前後的空白
-		const command =
-				COMMANDS_MAP[userLineType] && COMMANDS_MAP[userLineType][inputText];
+		const command = COMMANDS_MAP[userLineType] && COMMANDS_MAP[userLineType][inputText];
 		const userFunction = command ? command.function : null;
 		const fareTransferMatch = event.message.text.includes('車費匯款'); // 乘客
 		const bindDriverMatch = event.message.text.includes('綁定司機'); // 乘客
@@ -917,6 +914,7 @@ async function handleEvent(event) {
 				userLineType === '乘客' &&
 				!bindDriverMatch
 		) {
+			console.log(11111111111111111111111111)
 			const [result] = await executeSQL(
 					`SELECT line_user_id, line_user_name FROM users WHERE line_user_type = N'司機'`
 			);
@@ -924,11 +922,9 @@ async function handleEvent(event) {
 			result.forEach((entry) => {
 				responseText += `\n司機名稱: ${entry.line_user_name}>複製此ID: ${entry.line_user_id}。\n`;
 			});
-			createResponse(
-					'text',
-					`${profile.displayName} 您尚未綁定司機 ID。注意請先完成綁定司機後方可計算日後車費，目前司機名單為:\n${responseText ? responseText : "*目前無司機*"}\n 請輸入以下指令，(輸入範例: 綁定司機:U276d4...)`
+			createResponse('text', `${profile.displayName} 您尚未綁定司機 ID。注意請先完成綁定司機後方可計算日後車費，目前司機名單為:\n${responseText ? responseText : "*目前無司機*"}\n 請輸入以下指令，(輸入範例: 綁定司機:U276d4...)`
 			);
-			console.log("step2", echo)
+
 			// use reply API
 			return client.replyMessage(event.replyToken, echo);
 		}
@@ -953,6 +949,7 @@ async function handleEvent(event) {
 				await setDriverReverse(profile, event); // 預約日設定
 			}
 		} else {
+			console.log(22222222222222222222222222222222222222)
 			if (userLineType) {
 				if (event.message.text === '指令') {
 					const commandsString = getCommandsAsString(userLineType);
@@ -961,9 +958,10 @@ async function handleEvent(event) {
 							`${userLineType} ${profile.displayName} 歡迎回來，${commandsString}`
 					);
 				} else {
+					console.log(333333333333333333333333333333333333333)
+					console.log("AAAAAAAAAAAAAAAAAAAAAAAAA", echo);
 					// 組合整體訊息
 					createResponse('text', `${userLineType} ${profile.displayName} 歡迎回來，請輸入"指令"了解指令用法。`);
-					console.log("AAAAAAAAAAAAAAAAAAAAAAAAA", echo);
 				}
 			} else {
 				createResponse('text', '檢測資料異常，請聯絡開發人員!');
