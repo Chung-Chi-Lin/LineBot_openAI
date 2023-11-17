@@ -121,7 +121,7 @@ let echo = {}; // Bot 回傳提示字
 // ==================================================== 共用函式 ====================================================
 // 驗證用戶是否存在於資料庫
 async function validateUser(profile, event) {
-	console.log("SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS", profile)
+	console.log("SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS", event.message.text)
 	// 是否有 ID 在資料庫
 	const [existingUsers] = await executeSQL(
 			'SELECT * FROM users WHERE line_user_id = @line_user_id',
@@ -192,6 +192,7 @@ function formatDateToChinese(date) {
 // ==================================================== SQL函式處 ====================================================
 // SQL 專用 function
 async function executeSQL(query, params) {
+	console.log("SSSSSSSSSSSSSSSSAAAAAAAAAAAAAAAA", params)
 	try {
 		const request = pool.request();
 
