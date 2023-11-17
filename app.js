@@ -126,7 +126,7 @@ async function validateUser(profile, event) {
 			'SELECT * FROM users WHERE line_user_id = @line_user_id',
 			{line_user_id: profile.userId}
 	);
-
+	console.log("existingUsers", existingUsers);
 	let type = '';
 	let user = null;
 
@@ -891,8 +891,9 @@ async function handleEvent(event) {
 	const profile = await client.getProfile(event.source.userId); // 用戶資料
 	const validationResult = await validateUser(profile, event); // 初始 ID 驗證
 	let userType = '';
-
+	console.log("validationResult", validationResult)
 	if (validationResult.type === 'existing_user') {
+		console.log(12313232132112321);
 		// 此區塊處理已存在的用戶
 		const userLineType = validationResult.user.line_user_type;
 		const inputText = event.message.text.trim(); // 移除前後的空白
