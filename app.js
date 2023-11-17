@@ -121,7 +121,6 @@ let echo = {}; // Bot 回傳提示字
 // ==================================================== 共用函式 ====================================================
 // 驗證用戶是否存在於資料庫
 async function validateUser(profile, event) {
-	console.log("SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS", event.message.text)
 	// 是否有 ID 在資料庫
 	const [existingUsers] = await executeSQL(
 			'SELECT * FROM users WHERE line_user_id = @line_user_id',
@@ -192,7 +191,6 @@ function formatDateToChinese(date) {
 // ==================================================== SQL函式處 ====================================================
 // SQL 專用 function
 async function executeSQL(query, params) {
-	console.log("SSSSSSSSSSSSSSSSAAAAAAAAAAAAAAAA", params)
 	try {
 		const request = pool.request();
 
@@ -483,6 +481,7 @@ async function pickDriverReverse(profile, event) {
 			}
 	);
 
+	console.log("driveDaysData", driveDaysData)
 	// 比對並儲存資料
 	if (driveDaysData[0].length === 0) {
 		createResponse('text', '司機在該時段沒有開放預約。');
@@ -498,8 +497,7 @@ async function pickDriverReverse(profile, event) {
 			break;
 		}
 	}
-	console.log("driveDaysData", driveDaysData[0])
-	console.log("isDateRangeValid", isDateRangeValid)
+
 	if (!isDateRangeValid) {
 		createResponse('text', `${profile.displayName}，您選擇的時段與司機的開放時段不符。`);
 		return;
@@ -524,7 +522,8 @@ async function pickDriverReverse(profile, event) {
 				endDate,
 			}
 	);
-	console.log(overlapCheck);
+
+
 	// 儲存乘客的預約信息
 	// 開車儲存處理
 	if (reverseTypeValue === 1) {
@@ -811,9 +810,9 @@ async function setDriverReverse(profile, event) {
 	// 根據開車、不開車 SQL 查詢
 	const overlapCheck = await executeSQL(
 			`SELECT * FROM driver_dates 
-									 WHERE line_user_driver = @userId 
-									 	AND reverse_type = @reverseTypeValue
-									 	AND ${sqlDate}`,
+   WHERE line_user_driver = @userId 
+   AND reverse_type = @reverseTypeValue
+   AND ${sqlDate}`,
 			{
 				userId: profile.userId,
 				reverseTypeValue,
@@ -1006,7 +1005,7 @@ async function handleEvent(event) {
 		// 此區塊處理未依規則指令
 		createResponse('text', '請先依照身分輸入(我是乘客) 或 (我是司機) 加入。');
 	}
-
+	console.log("fixxxxxxxxxxxxxxxxxxxxxxxxxx",event.replyToken, echo)
 	// use reply API
 	return client.replyMessage(event.replyToken, echo);
 }
