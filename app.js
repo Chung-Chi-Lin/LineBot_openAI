@@ -161,6 +161,7 @@ async function validateUser(profile, event) {
 // 共用-回傳訊息格式
 function createResponse(type, message) {
 	echo = {type: type, text: message};
+	console.log("step1", echo);
 }
 
 // 共用-指令格式
@@ -900,9 +901,7 @@ async function handleEvent(event) {
 		const userFunction = command ? command.function : null;
 		const fareTransferMatch = event.message.text.includes('車費匯款'); // 乘客
 		const bindDriverMatch = event.message.text.includes('綁定司機'); // 乘客
-		const FareCountCommandsMatch = event.message.text.match(
-				/^([a-zA-Z0-9]+)\s*:? ?([+-]\d+)\s*備註:? ?(.+)/
-		);// 司機
+		const FareCountCommandsMatch = event.message.text.match(/^([a-zA-Z0-9]+)\s*:? ?([+-]\d+)\s*備註:? ?(.+)/);// 司機
 		const isDriverReverse = event.message.text.includes('預約日設定'); // 司機
 		const isPassengerReverse = event.message.text.includes('選擇預約日'); // 乘客
 
@@ -928,6 +927,7 @@ async function handleEvent(event) {
 					'text',
 					`${profile.displayName} 您尚未綁定司機 ID。注意請先完成綁定司機後方可計算日後車費，目前司機名單為:\n${responseText ? responseText : "*目前無司機*"}\n 請輸入以下指令，(輸入範例: 綁定司機:U276d4...)`
 			);
+			console.log("step2", echo)
 			// use reply API
 			return client.replyMessage(event.replyToken, echo);
 		}
@@ -961,10 +961,8 @@ async function handleEvent(event) {
 					);
 				} else {
 					// 組合整體訊息
-					createResponse(
-							'text',
-							`${userLineType} ${profile.displayName} 歡迎回來，請輸入"指令"了解指令用法。`
-					);
+					createResponse('text', `${userLineType} ${profile.displayName} 歡迎回來，請輸入"指令"了解指令用法。`);
+					console.log("AAAAAAAAAAAAAAAAAAAAAAAAA", echo);
 				}
 			} else {
 				createResponse('text', '檢測資料異常，請聯絡開發人員!');
@@ -1005,7 +1003,7 @@ async function handleEvent(event) {
 		// 此區塊處理未依規則指令
 		createResponse('text', '請先依照身分輸入(我是乘客) 或 (我是司機) 加入。');
 	}
-	console.log("fixxxxxxxxxxxxxxxxxxxxxxxxxx",event.replyToken, echo)
+	console.log("fixxxxxxxxxxxxxxxxxxxxxxxxxx", event.replyToken, echo)
 	// use reply API
 	return client.replyMessage(event.replyToken, echo);
 }
