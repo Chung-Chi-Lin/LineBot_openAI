@@ -309,37 +309,59 @@ async function searchDriveDay(profile, event, userLineType) {
 					nextYear
 				}
 		);
+		// 按月份整理乘客預約資訊
+		let userDaysByMonth = {};
+		userDaysData[0].forEach((day) => {
+			const startDate = new Date(day.start_date);
+			const monthYear = `${startDate.getFullYear()}年${startDate.getMonth() + 1}月份`;
+			userDaysByMonth[monthYear] = userDaysByMonth[monthYear] || [];
+			userDaysByMonth[monthYear].push(day);
+		});
 
+		// 生成乘客預約資訊的消息
 		message += `${profile.displayName}，您目前乘車資訊如下:\n\n`;
-		let lastMonth = null; // 用於追蹤上一條記錄的月份
-
-		if (userDaysData[0].length === 0) {
-			message += '尚無設定搭乘資訊';
-		} else {
-			userDaysData[0].forEach((day, index) => {
-				const startDate = new Date(day.start_date);
+		Object.keys(userDaysByMonth).sort().forEach((monthYear) => {
+			message += `${monthYear}：\n`;
+			userDaysByMonth[monthYear].forEach((day) => {
+				const startDateStr = `${startDate.getMonth() + 1}月${startDate.getDate()}日`;
 				const endDate = new Date(day.end_date);
-				const startMonth = startDate.getMonth() + 1;
-				const startYear = startDate.getFullYear();
-
-				// 當月份改變時，添加月份和年份
-				if (lastMonth !== startMonth) {
-					if (lastMonth !== null) {
-						message += '\n'; // 在上一個月份後添加換行
-					}
-					message += `${startYear}年${startMonth}月份：\n`;
-				}
-
-				const type = day.reverse_type === 1 ? '搭乘' : '不搭';
-				const startDateStr = `${startMonth}月${startDate.getDate()}日`;
-				const endDateStr = startMonth === endDate.getMonth() + 1 ? `${endDate.getDate()}日` : `${endDate.getMonth() + 1}月${endDate.getDate()}日`;
+				const endDateStr = startDate.getMonth() + 1 === endDate.getMonth() + 1 ? `${endDate.getDate()}日` : `${endDate.getMonth() + 1}月${endDate.getDate()}日`;
 				const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
+				const type = day.reverse_type === 1 ? '搭乘' : '不搭';
 				const note = day.note || '無備註';
-
 				message += `${type}> 日期:${dateRange}，備註:${note}\n`;
-				lastMonth = startMonth; // 更新追蹤的月份
 			});
-		}
+		});
+		// message += `${profile.displayName}，您目前乘車資訊如下:\n\n`;
+		// let lastMonth = null; // 用於追蹤上一條記錄的月份
+		//
+		// if (userDaysData[0].length === 0) {
+		// 	message += '尚無設定搭乘資訊';
+		// } else {
+		// 	userDaysData[0].forEach((day, index) => {
+		// 		const startDate = new Date(day.start_date);
+		// 		const endDate = new Date(day.end_date);
+		// 		const startMonth = startDate.getMonth() + 1;
+		// 		const startYear = startDate.getFullYear();
+		//
+		// 		// 當月份改變時，添加月份和年份
+		// 		if (lastMonth !== startMonth) {
+		// 			if (lastMonth !== null) {
+		// 				message += '\n'; // 在上一個月份後添加換行
+		// 			}
+		// 			message += `${startYear}年${startMonth}月份：\n`;
+		// 		}
+		//
+		// 		const type = day.reverse_type === 1 ? '搭乘' : '不搭';
+		// 		const startDateStr = `${startMonth}月${startDate.getDate()}日`;
+		// 		const endDateStr = startMonth === endDate.getMonth() + 1 ? `${endDate.getDate()}日` : `${endDate.getMonth() + 1}月${endDate.getDate()}日`;
+		// 		const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
+		// 		const note = day.note || '無備註';
+		//
+		// 		message += `${type}> 日期:${dateRange}，備註:${note}\n`;
+		// 		lastMonth = startMonth; // 更新追蹤的月份
+		// 	});
+		// }
 	}
 	createResponse('text', message);
 };
