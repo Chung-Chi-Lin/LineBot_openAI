@@ -568,7 +568,7 @@ async function pickDriverReverse(profile, event) {
 
 	// 執行 SQL
 	await executeSQL(
-			`${sqlAction} driver_dates ${sqlSetPart}`,
+			`${sqlAction} passenger_dates ${sqlSetPart}`,
 			{
 				userId: profile.userId,
 				startDate: startDate,
@@ -926,7 +926,6 @@ async function handleEvent(event) {
 			// use reply API
 			return client.replyMessage(event.replyToken, echo);
 		}
-		console.log("1231313212", userLineType);
 		if (userFunction) {
 			await userFunction(profile, event, userLineType); // 正確指令執行對應的功能
 		} else if ((fareTransferMatch || bindDriverMatch || isPassengerReverse) && userLineType === '乘客') {
@@ -997,7 +996,7 @@ async function handleEvent(event) {
 		// 此區塊處理未依規則指令
 		createResponse('text', '請先依照身分輸入(我是乘客) 或 (我是司機) 加入。');
 	}
-	console.log("fixxxxxxxxxxxxxxxxxxxxxxxxxx", event.replyToken, echo)
+
 	// use reply API
 	return client.replyMessage(event.replyToken, echo);
 }
