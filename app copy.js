@@ -163,38 +163,6 @@ function createResponse(type, message) {
 	echo = {type: type, text: message};
 }
 
-// 共用-新增輔助函式，用於格式化和組合消息
-function formatAndCombineMessages(data, userLineType, displayName) {
-	let message = `${displayName}，您目前${userLineType === '司機' ? '設置的開車' : '綁定的司機開車'}資訊如下:\n\n`;
-	let lastMonth = null;
-
-	data.forEach((day) => {
-		const startDate = new Date(day.start_date);
-		const endDate = new Date(day.end_date);
-		const startMonth = startDate.getMonth() + 1;
-		const startYear = startDate.getFullYear();
-
-		if (lastMonth !== startMonth) {
-			if (lastMonth !== null) {
-				message += '\n';
-			}
-			message += `${startYear}年${startMonth}月份：\n`;
-		}
-
-		const type = day.reverse_type === 1 ? '開車' : '不開車';
-		const startDateStr = `${startMonth}月${startDate.getDate()}日`;
-		const endDateStr = startMonth === endDate.getMonth() + 1 ? `${endDate.getDate()}日` : `${endDate.getMonth() + 1}月${endDate.getDate()}日`;
-		const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
-		const note = day.note || '無備註';
-		const limitStr = userLineType === '司機' && day.reverse_type === 1 ? `，乘客數尚餘:${day.limit}位` : '';
-
-		message += `${type}> 日期:${dateRange}，備註:${note}${limitStr}\n`;
-		lastMonth = startMonth;
-	});
-
-	return message;
-}
-
 // 共用-指令格式
 function getCommandsAsString(userType) {
 	const commands = Object.entries(COMMANDS_MAP[userType]).map(
@@ -263,31 +231,70 @@ async function handleUserTypeChange(profile, userType) {
 
 // 共用-開車日查詢
 async function searchDriveDay(profile, event, userLineType) {
+	// 查詢是否有符合的 line_user_driver
+	const userData = await executeSQL(
+			'SELECT line_user_driver FROM users WHERE line_user_id = @p1',
+			{p1: profile.userId}
+	);
+	let driverId = userData[0].line_user_driver;
 	const currentDate = new Date();
 	const currentMonth = currentDate.getMonth() + 1;
 	const currentYear = currentDate.getFullYear();
 	const nextMonth = (currentMonth % 12) + 1;
 	const nextYear = currentMonth === 12 ? currentYear + 1 : currentYear;
 
-	let message = '';
-	let data;
-
 	if (userLineType === '司機') {
-		const driverId = profile.userId;
-		const driveDaysData = await executeSQL(
-				`SELECT * FROM driver_dates WHERE line_user_driver = @driverId 
-             AND ((MONTH(start_date) = @currentMonth AND YEAR(start_date) = @currentYear) 
-             OR (MONTH(start_date) = @nextMonth AND YEAR(start_date) = @nextYear))`,
-				{
-					driverId,
-					currentMonth,
-					currentYear,
-					nextMonth,
-					nextYear
+		driverId = profile.userId;
+	}
+
+	// 查詢當前及下個月的預約信息
+	const driveDaysData = await executeSQL(
+			`SELECT * FROM driver_dates WHERE line_user_driver = @driverId 
+     AND ((MONTH(start_date) = @currentMonth AND YEAR(start_date) = @currentYear) 
+     OR (MONTH(start_date) = @nextMonth AND YEAR(start_date) = @nextYear))`,
+			{
+				driverId,
+				currentMonth,
+				currentYear,
+				nextMonth,
+				nextYear
+			}
+	);
+
+	let message = `${profile.displayName}，您目前${userLineType === '司機' ? '設置的開車' : '綁定的司機開車'}資訊如下:\n\n`;
+	let lastMonth = null; // 用於追蹤上一條記錄的月份
+
+	if (driveDaysData[0].length === 0) {
+		message += '尚無登記預約資訊';
+	} else {
+		driveDaysData[0].forEach((day, index) => {
+			const startDate = new Date(day.start_date);
+			const endDate = new Date(day.end_date);
+			const startMonth = startDate.getMonth() + 1;
+			const startYear = startDate.getFullYear();
+
+			// 當月份改變時，添加月份和年份
+			if (lastMonth !== startMonth) {
+				if (lastMonth !== null) {
+					message += '\n'; // 在上一個月份後添加換行
 				}
-		);
-		data = driveDaysData[0];
-	} else if (userLineType === '乘客') {
+				message += `${startYear}年${startMonth}月份：\n`;
+			}
+
+			const type = day.reverse_type === 1 ? '開車' : '不開車';
+			const startDateStr = `${startMonth}月${startDate.getDate()}日`;
+			const endDateStr = startMonth === endDate.getMonth() + 1 ? `${endDate.getDate()}日` : `${endDate.getMonth() + 1}月${endDate.getDate()}日`;
+			const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
+			const note = day.note || '無備註';
+			const limitStr = day.reverse_type === 1 ? `乘客數尚餘:${day.limit}位` : '';
+
+			message += `${type}> 日期:${dateRange}，備註:${note}，${limitStr}\n`;
+			lastMonth = startMonth; // 更新追蹤的月份
+		});
+	}
+	if (userLineType === '乘客') {
+		message += `\n\n 如需搭乘請輸入:\n\n(複製範例1> 選擇預約日: 2023-10-03~2023-10-28:搭乘 備註:不含國定假日及10/3、10/5只搭乘晚上)\n\n(複製範例2> 選擇預約日: 2023-10-10~2023-10-15:不搭 備註:出國)`;
+		// 查詢乘客預約資訊的邏輯
 		const passengerDatesData = await executeSQL(
 				`SELECT * FROM passenger_dates WHERE line_user_id = @userId
              AND ((MONTH(start_date) = @currentMonth AND YEAR(start_date) = @currentYear) 
@@ -300,17 +307,39 @@ async function searchDriveDay(profile, event, userLineType) {
 					nextYear
 				}
 		);
-		data = passengerDatesData[0];
-	}
 
-	if (data && data.length > 0) {
-		message = formatAndCombineMessages(data, userLineType, profile.displayName);
-	} else {
-		message = `${profile.displayName}，近兩個月無登記預約資訊`;
-	}
+		message += `\n\n${profile.displayName}，您的搭乘資訊如下:\n`;
+		let lastMonth = null;
+		console.log(passengerDatesData[0])
+		if (passengerDatesData[0].length === 0) {
+			return createResponse('text', `${profile.displayName}，近兩個月無登記搭乘紀錄`);
+		} else {
+			passengerDatesData[0].forEach((day) => {
+				const startDate = new Date(day.start_date);
+				const endDate = new Date(day.end_date);
+				const startMonth = startDate.getMonth() + 1;
+				const startYear = startDate.getFullYear();
 
+				if (lastMonth !== startMonth) {
+					if (lastMonth !== null) {
+						message += '\n';
+					}
+					message += `${startYear}年${startMonth}月份：\n`;
+				}
+
+				const type = day.reverse_type === 1 ? '搭車' : '不搭';
+				const startDateStr = `${startMonth}月${startDate.getDate()}日`;
+				const endDateStr = startMonth === endDate.getMonth() + 1 ? `${endDate.getDate()}日` : `${endDate.getMonth() + 1}月${endDate.getDate()}日`;
+				const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
+				const note = day.note || '無備註';
+
+				message += `${type}> 日期:${dateRange}，備註:${note}\n`;
+				lastMonth = startMonth;
+			});
+	}
 	createResponse('text', message);
 };
+
 // ==================================================== 對應指令功能 ====================================================
 // ============= 乘客對應函式 =============
 // 乘客-車費匯款的操作
@@ -378,10 +407,25 @@ async function searchFare(profile) {
 
 	const fare = userFare[0].user_fare;
 	const updateTime = new Date(userFare[0].update_time);
-	let message = `${profile.displayName}，您目前的車費細項如下:\n上次匯款車費及時間: NT$${fare} ${formatDateToChinese(updateTime)}\n`;
+	const formattedDate = formatDateToChinese(updateTime);
 
-	message += formatAndCombineMessages(fareDetails[0], '乘客', profile.displayName);
-	createResponse('text', message);
+	if (fareDetails[0].length === 0) {
+		createResponse(
+				'text',
+				`${profile.displayName} ，您最近的車費及時間為 NT$${fare} ${formattedDate}。`
+		);
+	} else {
+		let total = 0;
+		let message = `${profile.displayName}，您目前的車費細項如下:\n上次匯款車費及時間: NT$${fare} ${formattedDate}\n`;
+
+		for (const fareDetail of fareDetails[0]) {
+			const date = formatDateToChinese(new Date(fareDetail.update_time));
+			total += fareDetail.user_fare_count;
+			message += `\n> 紀錄時間${date} ${fareDetail.user_fare_count >= 0 ? '+' : ''}${fareDetail.user_fare_count} ， 原因為: ${fareDetail.user_remark || '無'}\n`;
+		}
+		message += `\n 計算後下月${total <= 0 ? '扣除' : '需補'} ${Math.abs(total)}`;
+		createResponse('text', message);
+	}
 }
 
 // 乘客-綁定司機的操作
@@ -596,19 +640,24 @@ async function pickDriverReverse(profile, event) {
 // ============= 司機對應函式 =============
 // 司機-顯示司機的乘客車費計算表
 async function fareIncome(profile) {
+	// 1. 執行SQL查詢來獲取特定司機的所有乘客的車費紀錄
 	const [result] = await executeSQL(
-			`SELECT u.line_user_name, f.user_fare, update_time
-         FROM fare AS f
-         JOIN users AS u ON f.line_user_id = u.line_user_id
-         WHERE u.line_user_driver = @p1`,
+			`SELECT u.line_user_name, f.user_fare, FORMAT(f.update_time, 'yyyy-MM-dd') AS formatted_date
+        FROM fare AS f
+        JOIN users AS u ON f.line_user_id = u.line_user_id
+        WHERE u.line_user_driver = @p1`,
 			{p1: profile.userId}
 	);
 
+	// 2. 檢查查詢結果
 	if (result.length === 0) {
 		createResponse('text', `目前尚無車費紀錄。`);
 	} else {
-		const message = formatAndCombineMessages(result, '司機', profile.displayName);
-		createResponse('text', message);
+		let responseText = '目前的車費計算表為：\n';
+		result.forEach((entry) => {
+			responseText += `\n${entry.line_user_name} : NT$${entry.user_fare}，匯款時間為 ${entry.formatted_date}\n`;
+		});
+		createResponse('text', responseText);
 	}
 }
 
