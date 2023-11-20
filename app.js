@@ -193,7 +193,7 @@ function formatDateToChinese(date) {
 }
 
 // 共用-預約日資訊格式
-function formatReservationMessage(day) {
+function formatReservationMsg(day) {
 	const startDate = new Date(day.start_date);
 	const endDate = new Date(day.end_date);
 	const startDateStr = `${startDate.getMonth() + 1}月${startDate.getDate()}日`;
@@ -202,6 +202,17 @@ function formatReservationMessage(day) {
 	const type = day.reverse_type === 1 ? '搭乘' : '不搭';
 	const note = day.note || '無備註';
 	return `${type}> 日期:${dateRange}，備註:${note}\n`;
+}
+function formatDriverReservationMsg(day) {
+	const startDate = new Date(day.start_date);
+	const endDate = new Date(day.end_date);
+	const startDateStr = `${startDate.getMonth() + 1}月${startDate.getDate()}日`;
+	const endDateStr = startDate.getMonth() + 1 === endDate.getMonth() + 1 ? `${endDate.getDate()}日` : `${endDate.getMonth() + 1}月${endDate.getDate()}日`;
+	const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
+	const type = day.reverse_type === 1 ? '開車' : '不開車';
+	const note = day.note || '無備註';
+	const limitStr = day.reverse_type === 1 ? `乘客數尚餘:${day.limit}位` : '';
+	return `${type}> 日期:${dateRange}，備註:${note}，${limitStr}\n`;
 }
 // ==================================================== SQL函式處 ====================================================
 // SQL 專用 function
@@ -296,14 +307,7 @@ async function searchDriveDay(profile, event, userLineType) {
 				message += `${startYear}年${startMonth}月份：\n`;
 			}
 
-			const type = day.reverse_type === 1 ? '開車' : '不開車';
-			const startDateStr = `${startMonth}月${startDate.getDate()}日`;
-			const endDateStr = startMonth === endDate.getMonth() + 1 ? `${endDate.getDate()}日` : `${endDate.getMonth() + 1}月${endDate.getDate()}日`;
-			const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
-			const note = day.note || '無備註';
-			const limitStr = day.reverse_type === 1 ? `乘客數尚餘:${day.limit}位` : '';
-
-			message += `${type}> 日期:${dateRange}，備註:${note}，${limitStr}\n`;
+			message += formatDriverReservationMsg(day);
 			lastMonth = startMonth; // 更新追蹤的月份
 		});
 	}
@@ -1008,11 +1012,11 @@ async function searchPassengerTakeDay(profile) {
 				message += `${monthYear}：\n`;
 				// 先處理所有 '搭乘' 的預約
 				passengerReservations[monthYear].filter(day => day.reverse_type === 1).forEach(day => {
-					message += formatReservationMessage(day); // 格式化消息的函數
+					message += formatReservationMsg(day); // 格式化消息的函數
 				});
 				// 接著處理所有 '不搭' 的預約
 				passengerReservations[monthYear].filter(day => day.reverse_type === 0).forEach(day => {
-					message += formatReservationMessage(day); // 格式化消息的函數
+					message += formatReservationMsg(day); // 格式化消息的函數
 				});
 			});
 		} else {
