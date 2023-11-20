@@ -968,14 +968,13 @@ async function searchPassengerTakeDay(profile) {
 	const passengerIds = boundPassengers[0].map(p => p.line_user_id);
 	// 把每個 ID 轉換成帶引號的字符串
 	const passengerIdsFormatted = passengerIds.map(id => `'${id}'`).join(', ');
-	console.log("passengerIdsFormatted", passengerIdsFormatted);
+
   // 使用格式化好的 ID 字符串建立 SQL 查詢
 	const query = `SELECT * FROM passenger_dates WHERE line_user_id IN (${passengerIdsFormatted}) AND ((MONTH(start_date) = MONTH(GETDATE()) AND YEAR(start_date) = YEAR(GETDATE())) OR (MONTH(start_date) = MONTH(DATEADD(month, 1, GETDATE())) AND YEAR(start_date) = YEAR(DATEADD(month, 1, GETDATE()))))`;
 
 	const passengerReservations = await executeSQL(query);
-	console.log("passengerReservations[0]", passengerReservations[0]);
-	let message = `${profile.displayName}，您目前綁定的乘客搭車資訊如下:\n\n`;
 
+	let message = `${profile.displayName}，您目前綁定的乘客搭車資訊如下:\n\n`;
 	// 整理乘客的預約資訊
 	let reservationsByPassenger = {};
 	passengerReservations[0].forEach(reservation => {
@@ -988,7 +987,6 @@ async function searchPassengerTakeDay(profile) {
 
 	// 生成預約資訊消息
 	boundPassengers[0].forEach(passenger => {
-		console.log("passenger", passenger);
 		const passengerName = passenger.line_user_name;
 		const passengerId = passenger.line_user_id;
 		message += `${passengerName}:\n`;
@@ -998,7 +996,14 @@ async function searchPassengerTakeDay(profile) {
 			Object.keys(passengerReservations).sort().forEach(monthYear => {
 				message += `${monthYear}：\n`;
 				passengerReservations[monthYear].forEach(day => {
-					// ... (相同的日期和訊息格式化代碼)
+					const startDate = new Date(day.start_date);
+					const endDate = new Date(day.end_date);
+					const startDateStr = `${startDate.getMonth() + 1}月${startDate.getDate()}日`;
+					const endDateStr = startDate.getMonth() + 1 === endDate.getMonth() + 1 ? `${endDate.getDate()}日` : `${endDate.getMonth() + 1}月${endDate.getDate()}日`;
+					const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
+					const type = day.reverse_type === 1 ? '搭乘' : '不搭';
+					const note = day.note || '無備註';
+					message += `${type}> 日期:${dateRange}，備註:${note}\n`;
 				});
 				if (passengerReservations[monthYear].length === 0) {
 					message += '尚無登記預約。\n';
