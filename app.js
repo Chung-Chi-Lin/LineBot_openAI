@@ -113,6 +113,10 @@ const COMMANDS_MAP = {
 			function: searchDriveDay,
 			remark: '查看司機發車日或不開車日 (輸入範例> 開車日查詢)',
 		},
+		乘客乘車日查詢: {
+			function: searchPassengerTakeDay,
+			remark: '查看搭乘的所有乘客，會搭乘的時間與備註 (輸入範例> 乘客乘車查詢)',
+		},
 		// 可以根據需求繼續新增功能
 	},
 };
@@ -295,7 +299,7 @@ async function searchDriveDay(profile, event, userLineType) {
 
 	if (userLineType === '乘客') {
 		driverId = profile.userId;
-		message += `\n\n 如需搭乘請輸入:\n\n(複製範例1> 選擇預約日: 2023-10-03~2023-10-28:搭乘 備註:不含國定假日及10/3、10/5只搭乘晚上)\n\n(複製範例2> 選擇預約日: 2023-10-10~2023-10-15:不搭 備註:出國)\n\n`;
+		message += `\n 如需搭乘請輸入:\n\n(複製範例1> 選擇預約日: 2023-10-03~2023-10-28:搭乘 備註:不含國定假日及10/3、10/5只搭乘晚上)\n\n(複製範例2> 選擇預約日: 2023-10-10~2023-10-15:不搭 備註:出國)\n\n`;
 		// 查詢當前及下個月的預約信息
 		const userDaysData = await executeSQL(
 				`SELECT * FROM passenger_dates WHERE line_user_id = @driverId 
@@ -333,36 +337,6 @@ async function searchDriveDay(profile, event, userLineType) {
 				message += `${type}> 日期:${dateRange}，備註:${note}\n`;
 			});
 		});
-		// message += `${profile.displayName}，您目前乘車資訊如下:\n\n`;
-		// let lastMonth = null; // 用於追蹤上一條記錄的月份
-		//
-		// if (userDaysData[0].length === 0) {
-		// 	message += '尚無設定搭乘資訊';
-		// } else {
-		// 	userDaysData[0].forEach((day, index) => {
-		// 		const startDate = new Date(day.start_date);
-		// 		const endDate = new Date(day.end_date);
-		// 		const startMonth = startDate.getMonth() + 1;
-		// 		const startYear = startDate.getFullYear();
-		//
-		// 		// 當月份改變時，添加月份和年份
-		// 		if (lastMonth !== startMonth) {
-		// 			if (lastMonth !== null) {
-		// 				message += '\n'; // 在上一個月份後添加換行
-		// 			}
-		// 			message += `${startYear}年${startMonth}月份：\n`;
-		// 		}
-		//
-		// 		const type = day.reverse_type === 1 ? '搭乘' : '不搭';
-		// 		const startDateStr = `${startMonth}月${startDate.getDate()}日`;
-		// 		const endDateStr = startMonth === endDate.getMonth() + 1 ? `${endDate.getDate()}日` : `${endDate.getMonth() + 1}月${endDate.getDate()}日`;
-		// 		const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
-		// 		const note = day.note || '無備註';
-		//
-		// 		message += `${type}> 日期:${dateRange}，備註:${note}\n`;
-		// 		lastMonth = startMonth; // 更新追蹤的月份
-		// 	});
-		// }
 	}
 	createResponse('text', message);
 };
@@ -982,6 +956,60 @@ async function setDriverReverse(profile, event) {
 
 	createResponse('text', `${profile.displayName}，${responseMessage}`);
 };
+
+// 司機-乘客搭車日查詢
+async function searchPassengerTakeDay(profile) {
+	// 從users表中查詢所有綁定到該司機的乘客
+	const boundPassengers = await executeSQL(
+			`SELECT line_user_id, line_user_name FROM users WHERE line_user_driver = @line_user_driver`,
+			{ line_user_driver: profile.userId }
+	);
+	console.log("boundPassengers", boundPassengers[0]);
+	// 查詢所有乘客的當前及下個月的預約信息
+	const passengerIds = boundPassengers[0].map(p => p.line_user_id);
+	const passengerReservations = await executeSQL(
+			`SELECT * FROM passenger_dates WHERE line_user_id IN (@passengerIds) AND ((MONTH(start_date) = MONTH(GETDATE()) AND YEAR(start_date) = YEAR(GETDATE())) OR (MONTH(start_date) = MONTH(DATEADD(month, 1, GETDATE())) AND YEAR(start_date) = YEAR(DATEADD(month, 1, GETDATE()))))`,
+			{ passengerIds: passengerIds.join(',') }
+	);
+
+	let message = `${profile.displayName}，您目前綁定的乘客搭車資訊如下:\n\n`;
+	console.log("passengerReservations[0]", passengerReservations[0]);
+	// 整理乘客的預約資訊
+	let reservationsByPassenger = {};
+	passengerReservations[0].forEach(reservation => {
+		const passengerId = reservation.line_user_id;
+		const monthYear = `${new Date(reservation.start_date).getFullYear()}年${new Date(reservation.start_date).getMonth() + 1}月份`;
+		reservationsByPassenger[passengerId] = reservationsByPassenger[passengerId] || {};
+		reservationsByPassenger[passengerId][monthYear] = reservationsByPassenger[passengerId][monthYear] || [];
+		reservationsByPassenger[passengerId][monthYear].push(reservation);
+	});
+
+	// 生成預約資訊消息
+	boundPassengers[0].forEach(passenger => {
+		console.log("passenger", passenger);
+		const passengerName = passenger.line_user_name;
+		const passengerId = passenger.line_user_id;
+		message += `${passengerName}:\n`;
+
+		const passengerReservations = reservationsByPassenger[passengerId];
+		if (passengerReservations) {
+			Object.keys(passengerReservations).sort().forEach(monthYear => {
+				message += `${monthYear}：\n`;
+				passengerReservations[monthYear].forEach(day => {
+					// ... (相同的日期和訊息格式化代碼)
+				});
+				if (passengerReservations[monthYear].length === 0) {
+					message += '尚無登記預約。\n';
+				}
+			});
+		} else {
+			message += '尚無登記預約。\n';
+		}
+		message += '\n';
+	});
+
+	createResponse('text', message);
+}
 
 // ==================================================== 主要處理指令函式 ====================================================
 async function handleEvent(event) {
