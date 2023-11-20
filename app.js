@@ -323,8 +323,9 @@ async function searchDriveDay(profile, event, userLineType) {
 		Object.keys(userDaysByMonth).sort().forEach((monthYear) => {
 			message += `${monthYear}：\n`;
 			userDaysByMonth[monthYear].forEach((day) => {
-				const startDateStr = `${startDate.getMonth() + 1}月${startDate.getDate()}日`;
+				const startDate = new Date(day.start_date);
 				const endDate = new Date(day.end_date);
+				const startDateStr = `${startDate.getMonth() + 1}月${startDate.getDate()}日`;
 				const endDateStr = startDate.getMonth() + 1 === endDate.getMonth() + 1 ? `${endDate.getDate()}日` : `${endDate.getMonth() + 1}月${endDate.getDate()}日`;
 				const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
 				const type = day.reverse_type === 1 ? '搭乘' : '不搭';
