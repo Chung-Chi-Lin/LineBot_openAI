@@ -192,6 +192,17 @@ function formatDateToChinese(date) {
 	return `${year}年${month}月${day}日`;
 }
 
+// 共用-預約日資訊格式
+function formatReservationMessage(day) {
+	const startDate = new Date(day.start_date);
+	const endDate = new Date(day.end_date);
+	const startDateStr = `${startDate.getMonth() + 1}月${startDate.getDate()}日`;
+	const endDateStr = startDate.getMonth() + 1 === endDate.getMonth() + 1 ? `${endDate.getDate()}日` : `${endDate.getMonth() + 1}月${endDate.getDate()}日`;
+	const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
+	const type = day.reverse_type === 1 ? '搭乘' : '不搭';
+	const note = day.note || '無備註';
+	return `${type}> 日期:${dateRange}，備註:${note}\n`;
+}
 // ==================================================== SQL函式處 ====================================================
 // SQL 專用 function
 async function executeSQL(query, params) {
@@ -995,19 +1006,14 @@ async function searchPassengerTakeDay(profile) {
 		if (passengerReservations) {
 			Object.keys(passengerReservations).sort().forEach(monthYear => {
 				message += `${monthYear}：\n`;
-				passengerReservations[monthYear].forEach(day => {
-					const startDate = new Date(day.start_date);
-					const endDate = new Date(day.end_date);
-					const startDateStr = `${startDate.getMonth() + 1}月${startDate.getDate()}日`;
-					const endDateStr = startDate.getMonth() + 1 === endDate.getMonth() + 1 ? `${endDate.getDate()}日` : `${endDate.getMonth() + 1}月${endDate.getDate()}日`;
-					const dateRange = startDateStr === endDateStr ? startDateStr : `${startDateStr}~${endDateStr}`;
-					const type = day.reverse_type === 1 ? '搭乘' : '不搭';
-					const note = day.note || '無備註';
-					message += `${type}> 日期:${dateRange}，備註:${note}\n`;
+				// 先處理所有 '搭乘' 的預約
+				passengerReservations[monthYear].filter(day => day.reverse_type === 1).forEach(day => {
+					message += formatReservationMessage(day); // 格式化消息的函數
 				});
-				if (passengerReservations[monthYear].length === 0) {
-					message += '尚無登記預約。\n';
-				}
+				// 接著處理所有 '不搭' 的預約
+				passengerReservations[monthYear].filter(day => day.reverse_type === 0).forEach(day => {
+					message += formatReservationMessage(day); // 格式化消息的函數
+				});
 			});
 		} else {
 			message += '尚無登記預約。\n';
