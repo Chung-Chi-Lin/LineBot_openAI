@@ -115,7 +115,7 @@ const COMMANDS_MAP = {
 		},
 		乘客乘車日查詢: {
 			function: searchPassengerTakeDay,
-			remark: '查看搭乘的所有乘客，會搭乘的時間與備註 (輸入範例> 乘客乘車查詢)',
+			remark: '查看搭乘的所有乘客，會搭乘的時間與備註 (輸入範例> 乘客乘車日查詢)',
 		},
 		// 可以根據需求繼續新增功能
 	},
@@ -964,16 +964,18 @@ async function searchPassengerTakeDay(profile) {
 			`SELECT line_user_id, line_user_name FROM users WHERE line_user_driver = @line_user_driver`,
 			{ line_user_driver: profile.userId }
 	);
-	console.log("boundPassengers", boundPassengers[0]);
-	// 查詢所有乘客的當前及下個月的預約信息
-	const passengerIds = boundPassengers[0].map(p => p.line_user_id);
-	const passengerReservations = await executeSQL(
-			`SELECT * FROM passenger_dates WHERE line_user_id IN (@passengerIds) AND ((MONTH(start_date) = MONTH(GETDATE()) AND YEAR(start_date) = YEAR(GETDATE())) OR (MONTH(start_date) = MONTH(DATEADD(month, 1, GETDATE())) AND YEAR(start_date) = YEAR(DATEADD(month, 1, GETDATE()))))`,
-			{ passengerIds: passengerIds.join(',') }
-	);
 
-	let message = `${profile.displayName}，您目前綁定的乘客搭車資訊如下:\n\n`;
+	const passengerIds = boundPassengers[0].map(p => p.line_user_id);
+	// 把每個 ID 轉換成帶引號的字符串
+	const passengerIdsFormatted = passengerIds.map(id => `'${id}'`).join(', ');
+	console.log("passengerIdsFormatted", passengerIdsFormatted);
+  // 使用格式化好的 ID 字符串建立 SQL 查詢
+	const query = `SELECT * FROM passenger_dates WHERE line_user_id IN (${passengerIdsFormatted}) AND ((MONTH(start_date) = MONTH(GETDATE()) AND YEAR(start_date) = YEAR(GETDATE())) OR (MONTH(start_date) = MONTH(DATEADD(month, 1, GETDATE())) AND YEAR(start_date) = YEAR(DATEADD(month, 1, GETDATE()))))`;
+
+	const passengerReservations = await executeSQL(query);
 	console.log("passengerReservations[0]", passengerReservations[0]);
+	let message = `${profile.displayName}，您目前綁定的乘客搭車資訊如下:\n\n`;
+
 	// 整理乘客的預約資訊
 	let reservationsByPassenger = {};
 	passengerReservations[0].forEach(reservation => {
@@ -1009,7 +1011,7 @@ async function searchPassengerTakeDay(profile) {
 	});
 
 	createResponse('text', message);
-}
+};
 
 // ==================================================== 主要處理指令函式 ====================================================
 async function handleEvent(event) {
