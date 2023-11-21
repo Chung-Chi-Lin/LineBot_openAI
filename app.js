@@ -613,22 +613,14 @@ async function pickDriverReverse(profile, event) {
 			responseMessage = '已覆蓋原月份預約時間。';
 		}
 	}
-
+	console.log("passLimit", passLimit);
 	if (reverseType === 0) {
 		if (overlapCheck[0].length <= 0) {
 			// 沒有重疊，進行插入操作
 			sqlAction = 'INSERT INTO';
 			sqlSetPart = '(line_user_id, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)';
 			responseMessage = '已設定好預約表。';
-			// let autoId = 0;
-			// driveDaysData[0].forEach((item) => {
-			// 	const itemStartMonth = new Date(item.start_date).getMonth() + 1;
-			// 	const passengerStartMonth = new Date(startDate).getMonth() + 1;
-			//
-			// 	if (item.reverse_type === 1 && itemStartMonth === passengerStartMonth) {
-			// 		autoId = item.auto_id;
-			// 	}
-			// });
+
 			let autoId = 0;
 			const matchingItem = driveDaysData[0].find(item => {
 				const itemStartMonth = new Date(item.start_date).getMonth() + 1;
@@ -639,7 +631,7 @@ async function pickDriverReverse(profile, event) {
 			if (matchingItem) {
 				autoId = matchingItem.auto_id;
 			}
-
+			console.log("matchingItem", matchingItem);
 			await executeSQL(
 					`UPDATE driver_dates SET limit = @limit WHERE line_user_driver = @driverId AND auto_id = @autoId`,
 					{
