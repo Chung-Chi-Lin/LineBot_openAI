@@ -416,7 +416,7 @@ async function cancelReverseDay(profile, event, userLineType) {
 		);
 		createResponse('text', `${profile.displayName}，已取消區間预定，請記得確認現在預約。`);
 	} else {
-		createResponse('text', `${profile.displayName}，未找到匹配的预定信息，請檢查輸入是否正確。\n\n 輸入範例> 取消已預約時間:2023-11-01~2023-11-05:不搭`);
+		createResponse('text', `${profile.displayName}，未找到對應預約日期，請檢查輸入是否正確。\n\n 輸入範例> 取消已預約時間:2023-11-01~2023-11-05:不搭`);
 	}
 }
 
