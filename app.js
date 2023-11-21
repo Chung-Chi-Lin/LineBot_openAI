@@ -340,7 +340,7 @@ async function searchDriveDay(profile, event, userLineType) {
 		if (userDaysData[0]) {
 			message += `\n------- 以上為司機開車時間 -------\n\n------- 以下為您的搭車時間 -------\n`;
 		}
-		message += `${profile.displayName}，您目前乘車資訊如下:\n\n`;
+		message += `\n${profile.displayName}，您目前乘車資訊如下:\n\n`;
 		Object.keys(userDaysByMonth).sort().forEach((monthYear) => {
 			message += `${monthYear}：\n`;
 			userDaysByMonth[monthYear].forEach((day) => {
@@ -355,7 +355,7 @@ async function searchDriveDay(profile, event, userLineType) {
 			});
 		});
 	}
-	message += `\n\n 如需搭乘請輸入:\n\n(複製範例1> 選擇預約日:2023-10-03~2023-10-28:搭乘 備註:不含國定假日及10/5只搭乘晚上)\n\n(複製範例2> 選擇預約日:2023-10-10~2023-10-15:不搭 備註:出國)`;
+	message += `\n\n 如需搭乘請輸入以下範例:\n(複製範例1> 選擇預約日:2023-10-03~2023-10-28:搭乘 備註:不含國定假日及10/5只搭乘晚上)\n\n(複製範例2> 選擇預約日:2023-10-10~2023-10-15:不搭 備註:出國)`;
 	createResponse('text', message);
 };
 
