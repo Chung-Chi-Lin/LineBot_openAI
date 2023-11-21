@@ -620,22 +620,32 @@ async function pickDriverReverse(profile, event) {
 			sqlAction = 'INSERT INTO';
 			sqlSetPart = '(line_user_id, start_date, end_date, reverse_type, note) VALUES (@userId, @startDate, @endDate, @reverseType, @note)';
 			responseMessage = '已設定好預約表。';
+			// let autoId = 0;
+			// driveDaysData[0].forEach((item) => {
+			// 	const itemStartMonth = new Date(item.start_date).getMonth() + 1;
+			// 	const passengerStartMonth = new Date(startDate).getMonth() + 1;
+			//
+			// 	if (item.reverse_type === 1 && itemStartMonth === passengerStartMonth) {
+			// 		autoId = item.auto_id;
+			// 	}
+			// });
 			let autoId = 0;
-			driveDaysData[0].forEach((item) => {
+			const matchingItem = driveDaysData[0].find(item => {
 				const itemStartMonth = new Date(item.start_date).getMonth() + 1;
 				const passengerStartMonth = new Date(startDate).getMonth() + 1;
-
-				if (item.reverse_type === 1 && itemStartMonth === passengerStartMonth) {
-					autoId = item.auto_id;
-				}
+				return item.reverse_type === 1 && itemStartMonth === passengerStartMonth;
 			});
+
+			if (matchingItem) {
+				autoId = matchingItem.auto_id;
+			}
 
 			await executeSQL(
 					`UPDATE driver_dates SET limit = @limit WHERE line_user_driver = @driverId AND auto_id = @autoId`,
 					{
 						driverId,
 						limit: passLimit,
-						recordId: autoId
+						autoId: autoId // 確保這裡的鍵名與 SQL 查詢中的變數名相同
 					}
 			);
 		} else if (overlapCheck[0].length === 1) {
