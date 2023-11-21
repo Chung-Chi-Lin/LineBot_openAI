@@ -314,7 +314,6 @@ async function searchDriveDay(profile, event, userLineType) {
 
 	if (userLineType === '乘客') {
 		driverId = profile.userId;
-		message += `\n 如需搭乘請輸入:\n\n(複製範例1> 選擇預約日: 2023-10-03~2023-10-28:搭乘 備註:不含國定假日及10/3、10/5只搭乘晚上)\n\n(複製範例2> 選擇預約日: 2023-10-10~2023-10-15:不搭 備註:出國)\n\n`;
 		// 查詢當前及下個月的預約信息
 		const userDaysData = await executeSQL(
 				`SELECT * FROM passenger_dates WHERE line_user_id = @driverId 
@@ -338,6 +337,9 @@ async function searchDriveDay(profile, event, userLineType) {
 		});
 
 		// 生成乘客預約資訊的消息
+		if (userDaysData[0]) {
+			message += `\n------- 以上為司機開車時間 -------\n\n------- 以下為您的搭車時間 -------\n`;
+		}
 		message += `${profile.displayName}，您目前乘車資訊如下:\n\n`;
 		Object.keys(userDaysByMonth).sort().forEach((monthYear) => {
 			message += `${monthYear}：\n`;
@@ -353,6 +355,7 @@ async function searchDriveDay(profile, event, userLineType) {
 			});
 		});
 	}
+	message += `\n\n 如需搭乘請輸入:\n\n(複製範例1> 選擇預約日:2023-10-03~2023-10-28:搭乘 備註:不含國定假日及10/5只搭乘晚上)\n\n(複製範例2> 選擇預約日:2023-10-10~2023-10-15:不搭 備註:出國)`;
 	createResponse('text', message);
 };
 
