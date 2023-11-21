@@ -117,6 +117,10 @@ const COMMANDS_MAP = {
 			function: searchPassengerTakeDay,
 			remark: '查看搭乘的所有乘客，會搭乘的時間與備註 (輸入範例> 乘客乘車日查詢)',
 		},
+		取消已預約時間: {
+			function: cancelReverseDay,
+			remark: '刪除不乘車、不開車紀錄 (輸入範例> 取消已預約時間:2023-10-10~2023-10-15)',
+		},
 		// 可以根據需求繼續新增功能
 	},
 };
@@ -354,10 +358,67 @@ async function searchDriveDay(profile, event, userLineType) {
 				message += `${type}> 日期:${dateRange}，備註:${note}\n`;
 			});
 		});
-	}
-	message += `\n\n 如需搭乘請輸入以下範例:\n(複製範例1> 選擇預約日:2023-10-03~2023-10-28:搭乘 備註:不含國定假日及10/5只搭乘晚上)\n\n(複製範例2> 選擇預約日:2023-10-10~2023-10-15:不搭 備註:出國)`;
+		message += `\n\n 如需搭乘請輸入以下範例:\n(複製範例1> 選擇預約日:2023-10-03~2023-10-28:搭乘 備註:不含國定假日及10/5只搭乘晚上)\n\n(複製範例2> 選擇預約日:2023-10-10~2023-10-15:不搭 備註:出國)`;
+	};
+	if (userLineType === '司機') {
+		message += `\n\n 如需搭乘請輸入以下範例:\n查看先前預約以及設置開放預約乘客時間，乘客端可以搜尋到您開放的日期，請務必輸入區間及備註，如僅有一天區間都設定同日期。\n\n(複製範例1> 預約日設定: 2023-10-03~2023-10-28:開車 備註:不含國定假日 乘客數量:3)\n\n(複製範例2> 預約日設定: 2023-10-10~2023-10-15:不開車 備註:出國)`;
+	};
 	createResponse('text', message);
 };
+
+// 共用-取消已預約日
+async function cancelReverseDay(profile, event, userLineType) {
+	// 解析用户输入
+	const inputPattern = /取消已預約時間:(\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2}):(搭乘|不搭|開車|不開車)/;
+	const inputMatch = event.message.text.match(inputPattern);
+
+	if (!inputMatch) {
+		createResponse('text', `${profile.displayName}，输入格式不正确。`);
+		return;
+	}
+
+	const startDate = inputMatch[1];
+	const endDate = inputMatch[2];
+	let reverseType = 0;
+
+	if (userLineType === '乘客') {
+		reverseType = inputMatch[3] === '搭乘' ? 1 : 0;
+	}
+	if (userLineType === '司機') {
+		reverseType = inputMatch[3] === '開車' ? 1 : 0;
+	}
+
+	// 根据用户类型设置表名和条件
+	const tableName = userLineType === '乘客' ? 'passenger_dates' : 'driver_dates';
+	const userIdColumn = userLineType === '乘客' ? 'line_user_id' : 'line_user_driver';
+
+	// 查找匹配的预定记录
+	const matchingReservations = await executeSQL(
+			`SELECT * FROM ${tableName} 
+     WHERE ${userIdColumn} = @userId 
+     AND start_date = @startDate 
+     AND end_date = @endDate 
+     AND reverse_type = @reverseType`,
+			{
+				userId: profile.userId,
+				startDate: startDate,
+				endDate: endDate,
+				reverseType: reverseType,
+			}
+	);
+
+	// 如果找到匹配的记录，则删除
+	if (matchingReservations[0].length > 0) {
+		const autoId = matchingReservations[0][0].auto_id; // 假设只有一条匹配记录
+		await executeSQL(
+				`DELETE FROM ${tableName} WHERE auto_id = @autoId`,
+				{ autoId: autoId }
+		);
+		createResponse('text', `${profile.displayName}，已取消區間预定，請記得確認現在預約。`);
+	} else {
+		createResponse('text', `${profile.displayName}，未找到匹配的预定信息，請檢查輸入是否正確。\n\n 輸入範例> 取消已預約時間:2023-11-01~2023-11-05:不搭`);
+	}
+}
 
 // ==================================================== 對應指令功能 ====================================================
 // ============= 乘客對應函式 =============
@@ -1055,7 +1116,7 @@ async function handleEvent(event) {
 		const FareCountCommandsMatch = event.message.text.match(/^([a-zA-Z0-9]+)\s*:? ?([+-]\d+)\s*備註:? ?(.+)/);// 司機
 		const isDriverReverse = event.message.text.includes('預約日設定'); // 司機
 		const isPassengerReverse = event.message.text.includes('選擇預約日'); // 乘客
-
+		const isCancelReverseDay = event.message.text.includes('取消已預約時間');
 		// 是否為乘客判斷有無綁定司機ID
 		const [userData] = await executeSQL(
 				'SELECT line_user_driver FROM users WHERE line_user_id = @p1',
@@ -1082,7 +1143,7 @@ async function handleEvent(event) {
 		}
 		if (userFunction) {
 			await userFunction(profile, event, userLineType); // 正確指令執行對應的功能
-		} else if ((fareTransferMatch || bindDriverMatch || isPassengerReverse) && userLineType === '乘客') {
+		} else if ((fareTransferMatch || bindDriverMatch || isPassengerReverse || isCancelReverseDay ) && userLineType === '乘客') {
 			if (fareTransferMatch) {
 				await transferFare(profile, event); // 車費匯款特別處理
 			}
@@ -1092,12 +1153,18 @@ async function handleEvent(event) {
 			if (isPassengerReverse) {
 				await pickDriverReverse(profile, event); // 選擇預約日
 			}
-		} else if ((FareCountCommandsMatch || isDriverReverse) && userLineType === '司機') {
+			if (isCancelReverseDay) {
+				await  cancelReverseDay(profile, event, userLineType);
+			}
+		} else if ((FareCountCommandsMatch || isDriverReverse || isCancelReverseDay) && userLineType === '司機') {
 			if (FareCountCommandsMatch) {
 				await passengerFareCount(profile, event); // 車費匯款特別處理
 			}
 			if (isDriverReverse) {
 				await setDriverReverse(profile, event); // 預約日設定
+			}
+			if (isCancelReverseDay) {
+				await  cancelReverseDay(profile, event, userLineType);
 			}
 		} else {
 			if (userLineType) {
