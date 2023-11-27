@@ -904,7 +904,7 @@ async function totalFareCount(profile) {
 	}
 
 	// 根據乘客的車費細節生成回應消息
-	let message = `10月份車資\n\n`;
+	let message = `${new Date().getMonth()}月份車資\n\n`;
 
 	for (const detail of passengerDetails) {
 		if (detail.noRecord) {
